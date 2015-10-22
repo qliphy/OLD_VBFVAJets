@@ -134,8 +134,9 @@ process.analysis = cms.Path(
 process.load("VAJets.PKUCommon.data.RSGravitonToWW_kMpl01_M_1000_Tune4C_13TeV_pythia8")
 process.source.fileNames = [
 #"/store/user/qili/Bulk/test-WAmatchingnew-v3/150724_013843/0000/TOP-RunIISpring15DR74-00001_93.root",
-"/store/user/qili/Bulk/test-WAmatchingnew-v3/150724_013843/0000/TOP-RunIISpring15DR74-00001_90.root",
+#"/store/user/qili/Bulk/test-WAmatchingnew-v3/150724_013843/0000/TOP-RunIISpring15DR74-00001_90.root",
 #"/store/data/Run2015D/SingleElectron/MINIAOD/05Oct2015-v1/10000/00991D45-4E6F-E511-932C-0025905A48F2.root"
+"root://xrootd.unl.edu//store/user/qili/Bulk/test-LOWVA-v3/150714_002636/0000/TOP-RunIISpring15DR74-00001_1.root"
 ]
                        
 process.maxEvents.input = 24
