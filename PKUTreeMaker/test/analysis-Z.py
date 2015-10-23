@@ -24,15 +24,13 @@ process.load("VAJets.PKUCommon.goodMuons_cff")
 process.load("VAJets.PKUCommon.goodElectrons_cff")
 process.load("VAJets.PKUCommon.goodJets_cff")
 process.load("VAJets.PKUCommon.goodPhotons_cff")
-process.load("VAJets.PKUCommon.leptonicW_cff")
+process.load("VAJets.PKUCommon.leptonicZ_cff")
 
 # If Update
 process.goodMuons.src = "slimmedMuons"
 process.goodElectrons.src = "slimmedElectrons"
 process.goodAK4Jets.src = "slimmedJets"
 process.goodPhotons.src = "slimmedPhotons"
-process.Wtoenu.MET  = "slimmedMETs"
-process.Wtomunu.MET = "slimmedMETs"
 
 #process.goodOfflinePrimaryVertex = cms.EDFilter("VertexSelector",
 #                                       src = cms.InputTag("offlineSlimmedPrimaryVertices"),
@@ -40,11 +38,11 @@ process.Wtomunu.MET = "slimmedMETs"
 #                                       filter = cms.bool(False)
 #                                       )
 
-WBOSONCUT = "pt > 0.0"
+ZBOSONCUT = "pt > 0.0"
 
 process.leptonicVSelector = cms.EDFilter("CandViewSelector",
                                        src = cms.InputTag("leptonicV"),
-                                       cut = cms.string( WBOSONCUT ), 
+                                       cut = cms.string( ZBOSONCUT ), 
                                        filter = cms.bool(False)
                                        )
 
@@ -82,7 +80,7 @@ else:
 
  
    
-process.treeDumper = cms.EDAnalyzer("PKUTreeMaker",
+process.treeDumper = cms.EDAnalyzer("ZPKUTreeMaker",
                                     originalNEvents = cms.int32(1),
                                     crossSectionPb = cms.double(1),
                                     targetLumiInvPb = cms.double(1.0),
@@ -102,8 +100,8 @@ process.treeDumper = cms.EDAnalyzer("PKUTreeMaker",
                                     photonSrc = cms.string("goodPhotons"),  
                                     loosemuonSrc = cms.InputTag("looseMuons"),
                                     hltToken    = cms.InputTag("TriggerResults","","HLT"),
-                                    elPaths     = cms.vstring("HLT_Ele27*"),
-                                    muPaths     = cms.vstring("HLT_Mu45*"), 
+                                    elPaths     = cms.vstring("HLT_Ele*"),
+                                    muPaths     = cms.vstring("HLT_Mu*"), 
 				    noiseFilter = cms.InputTag('TriggerResults','', hltFiltersProcessName),
 				    noiseFilterSelection_HBHENoiseFilter = cms.string('Flag_HBHENoiseFilter'),
 				    noiseFilterSelection_EarlyRunsHBHENoiseFilter = cms.InputTag("HBHENoiseFilterResultProducer", "HBHENoiseFilterResult"),
@@ -134,8 +132,8 @@ process.analysis = cms.Path(
 ### Source
 process.load("VAJets.PKUCommon.data.RSGravitonToWW_kMpl01_M_1000_Tune4C_13TeV_pythia8")
 process.source.fileNames = [
-"root://xrootd.unl.edu//store/user/qili/Bulk/test-WAmatchingnew-v3/150724_013843/0000/TOP-RunIISpring15DR74-00001_93.root",
-#"/store/user/qili/Bulk/test-WAmatchingnew-v3/150724_013843/0000/TOP-RunIISpring15DR74-00001_93.root",
+        "root://xrootd.unl.edu//store/mc/RunIISpring15DR74/ZGTo2LG_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/MINIAODSIM/Asympt25ns_MCRUN2_74_V9-v1/10000/0433F63E-B759-E511-B25E-0002C90C53FA.root"
+#"root://xrootd.unl.edu//store/user/qili/Bulk/test-WAmatchingnew-v3/150724_013843/0000/TOP-RunIISpring15DR74-00001_93.root",
 #"/store/data/Run2015D/SingleMuon/MINIAOD/05Oct2015-v1/40000/C4A44722-686F-E511-A2F4-002354EF3BD2.root"
 #"/store/data/Run2015D/SingleElectron/MINIAOD/05Oct2015-v1/10000/00991D45-4E6F-E511-932C-0025905A48F2.root"
 #"/store/data/Run2015D/SingleMuon/MINIAOD/PromptReco-v4/000/258/703/00000/B0DFE51B-7972-E511-A3DA-02163E01450B.root"
