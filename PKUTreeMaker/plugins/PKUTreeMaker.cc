@@ -1,4 +1,5 @@
 // system include files
+
 #include <iostream>
 #include <memory>
 #include "TMath.h"
@@ -130,7 +131,7 @@ private:
   // ----------member data ---------------------------
   TTree* outTree_;
 
-  double MW_; //Jing
+  double MW_; 
   int nevent, run, ls;
   int nVtx;
   double triggerWeight, lumiWeight, pileupWeight;
