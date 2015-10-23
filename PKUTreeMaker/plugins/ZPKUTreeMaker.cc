@@ -49,21 +49,21 @@
 #include "TMath.h"
 #include <TFormula.h>
 
-struct sortPt
+struct ZsortPt
 {
    bool operator()(TLorentzVector* s1, TLorentzVector* s2) const
    {
       return s1->Pt() >= s2->Pt();
    }
-} mysortPt;
+} ZmysortPt;
 //
 // class declaration
 //
 
-class PKUTreeMaker : public edm::EDAnalyzer {
+class ZPKUTreeMaker : public edm::EDAnalyzer {
 public:
-  explicit PKUTreeMaker(const edm::ParameterSet&);
-  ~PKUTreeMaker();
+  explicit ZPKUTreeMaker(const edm::ParameterSet&);
+  ~ZPKUTreeMaker();
   //static void fillDescriptions(edm::ConfigurationDescriptions & descriptions);
     
     enum PhotonMatchType {UNMATCHED = 0,
@@ -129,8 +129,6 @@ private:
 
   // ----------member data ---------------------------
   TTree* outTree_;
-
-  double MW_; //Jing
   int nevent, run, ls;
   int nVtx;
   double triggerWeight, lumiWeight, pileupWeight;
@@ -138,9 +136,9 @@ private:
   double  nump=0.;
   double  numm=0.;
 
-  double ptVlep, yVlep, phiVlep, massVlep, mtVlep;
-  double ptVlepJEC, yVlepJEC, phiVlepJEC, massVlepJEC, mtVlepJEC;
+  double ptVlep, yVlep, phiVlep, massVlep;
   double ptlep1, etalep1, philep1;
+  double ptlep2, etalep2, philep2;
   int  lep, nlooseeles,nloosemus;
   double met, metPhi, j1metPhi, j2metPhi;
   //Met JEC
@@ -158,7 +156,7 @@ private:
   double photonet, photoneta, photonphi, photone;
   double photonsieie, photonphoiso, photonchiso, photonnhiso;
   int iphoton;
-  double drla;
+  double drla,drla2;
   bool passEleVeto;
   //Photon gen match
   std::vector<Int_t>   isTrue_;
@@ -167,7 +165,7 @@ private:
   //Jets
   double jet1pt, jet1eta, jet1phi, jet1e, jet1csv, jet1icsv;
   double jet2pt, jet2eta, jet2phi, jet2e, jet2csv, jet2icsv;
-  double drj1a, drj2a, drj1l, drj2l;
+  double drj1a, drj2a, drj1l, drj2l, drj1l2, drj2l2;
   double Mjj, deltaeta, zepp;
    
   edm::InputTag electronIdTag_;
@@ -216,7 +214,7 @@ private:
 
 };
 
-float PKUTreeMaker::EAch( float x){
+float ZPKUTreeMaker::EAch( float x){
  float EA = 0.0158;
  if(x>1.0)   EA = 0.0143;
  if(x>1.479) EA = 0.0115;
@@ -227,7 +225,7 @@ float PKUTreeMaker::EAch( float x){
  return EA;
 }
 
-float PKUTreeMaker::EAnh( float x){
+float ZPKUTreeMaker::EAnh( float x){
  float EA = 0.0143;
  if(x>1.0)   EA = 0.0210;
  if(x>1.479) EA = 0.0147;
@@ -238,7 +236,7 @@ float PKUTreeMaker::EAnh( float x){
  return EA;
 }
 
-float PKUTreeMaker::EApho( float x){
+float ZPKUTreeMaker::EApho( float x){
  float EA = 0.0725;
  if(x>1.0)   EA = 0.0604;
  if(x>1.479) EA = 0.0320;
@@ -253,7 +251,7 @@ float PKUTreeMaker::EApho( float x){
 //
 // constructors and destructor
 //
-PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
+ZPKUTreeMaker::ZPKUTreeMaker(const edm::ParameterSet& iConfig):
   hltToken_(consumes<edm::TriggerResults>(iConfig.getParameter<edm::InputTag>("hltToken"))),
   elPaths_(iConfig.getParameter<std::vector<std::string>>("elPaths")),
   muPaths_(iConfig.getParameter<std::vector<std::string>>("muPaths"))
@@ -302,7 +300,6 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
    METFilters_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_metFilters");
 
 
-   MW_=80.385; //Jing 
   //now do what ever initialization is needed
   edm::Service<TFileService> fs;
   outTree_ = fs->make<TTree>("PKUCandidates","PKU Candidates");
@@ -318,12 +315,6 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
   outTree_->Branch("yVlep"           ,&yVlep          ,"yVlep/D"          );
   outTree_->Branch("phiVlep"         ,&phiVlep        ,"phiVlep/D"        );
   outTree_->Branch("massVlep"        ,&massVlep       ,"massVlep/D"       );
-  outTree_->Branch("mtVlep"          ,&mtVlep         ,"mtVlep/D"         );
-  outTree_->Branch("ptVlepJEC"          ,&ptVlepJEC         ,"ptVlepJEC/D"         );
-  outTree_->Branch("yVlepJEC"           ,&yVlepJEC          ,"yVlepJEC/D"          );
-  outTree_->Branch("phiVlepJEC"         ,&phiVlepJEC        ,"phiVlepJEC/D"        );
-  outTree_->Branch("massVlepJEC"        ,&massVlepJEC       ,"massVlepJEC/D"       );
-  outTree_->Branch("mtVlepJEC"          ,&mtVlepJEC         ,"mtVlepJEC/D"         );
   outTree_->Branch("nlooseeles"          ,&nlooseeles         ,"nlooseeles/I"         );
   outTree_->Branch("nloosemus"          ,&nloosemus         ,"nloosemus/I"         );
 
@@ -343,6 +334,7 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
   outTree_->Branch("photonnhiso"          ,&photonnhiso         ,"photonnhiso/D"         );
   outTree_->Branch("iphoton"             ,&iphoton            ,"iphoton/I"            );
   outTree_->Branch("drla"          ,&drla         ,"drla/D"         );
+  outTree_->Branch("drla2"          ,&drla2         ,"drla2/D"         );
     //photon gen match
     outTree_->Branch("dR"    , &dR_, "dR/D");
     outTree_->Branch("ISRPho"        , &ISRPho       ,"ISRPho/O"       );
@@ -364,6 +356,8 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
   outTree_->Branch("drj2a"          ,&drj2a         ,"drj2a/D"         );
   outTree_->Branch("drj1l"          ,&drj1l         ,"drj1l/D"         );
   outTree_->Branch("drj2l"          ,&drj2l         ,"drj2l/D"         );
+  outTree_->Branch("drj1l2"          ,&drj1l2         ,"drj1l2/D"         );
+  outTree_->Branch("drj2l2"          ,&drj2l2         ,"drj2l2/D"         );
   outTree_->Branch("Mjj"          ,&Mjj         ,"Mjj/D"         );
   outTree_->Branch("deltaeta"          ,&deltaeta         ,"deltaeta/D"         );
   outTree_->Branch("zepp"          ,&zepp         ,"zepp/D"         );
@@ -371,6 +365,9 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
   outTree_->Branch("ptlep1"          ,&ptlep1         ,"ptlep1/D"         );
   outTree_->Branch("etalep1"         ,&etalep1        ,"etalep1/D"        );
   outTree_->Branch("philep1"         ,&philep1        ,"philep1/D"        );
+  outTree_->Branch("ptlep2"          ,&ptlep2         ,"ptlep2/D"         );
+  outTree_->Branch("etalep2"         ,&etalep2        ,"etalep2/D"        );
+  outTree_->Branch("philep2"         ,&philep2        ,"philep2/D"        );
   outTree_->Branch("met"             ,&met            ,"met/D"            );
   outTree_->Branch("metPhi"          ,&metPhi         ,"metPhi/D"         );
   outTree_->Branch("j1metPhi"          ,&j1metPhi         ,"j1metPhi/D"         );
@@ -411,7 +408,7 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
 }
 
 
-double PKUTreeMaker::getJEC( reco::Candidate::LorentzVector& rawJetP4, const pat::Jet& jet, double& jetCorrEtaMax, std::vector<std::string> jecPayloadNames_ ){
+double ZPKUTreeMaker::getJEC( reco::Candidate::LorentzVector& rawJetP4, const pat::Jet& jet, double& jetCorrEtaMax, std::vector<std::string> jecPayloadNames_ ){
     std::vector<JetCorrectorParameters> vPar;
     //         vPar.clear();
     for ( std::vector<std::string>::const_iterator payloadBegin = jecAK4Labels_.begin(), payloadEnd = jecAK4Labels_.end(), ipayload = payloadBegin; ipayload != payloadEnd; ++ipayload ) {
@@ -435,7 +432,7 @@ double PKUTreeMaker::getJEC( reco::Candidate::LorentzVector& rawJetP4, const pat
     return jetCorrFactor;
 }
 
-double PKUTreeMaker::getJECOffset( reco::Candidate::LorentzVector& rawJetP4, const pat::Jet& jet, double& jetCorrEtaMax, std::vector<std::string> jecPayloadNames_ ){
+double ZPKUTreeMaker::getJECOffset( reco::Candidate::LorentzVector& rawJetP4, const pat::Jet& jet, double& jetCorrEtaMax, std::vector<std::string> jecPayloadNames_ ){
     std::vector<JetCorrectorParameters> vPar;
     //         vPar.clear();
     for ( std::vector<std::string>::const_iterator payloadBegin = offsetCorrLabel_.begin(), payloadEnd = offsetCorrLabel_.end(), ipayload = payloadBegin; ipayload != payloadEnd; ++ipayload ) {
@@ -460,7 +457,7 @@ double PKUTreeMaker::getJECOffset( reco::Candidate::LorentzVector& rawJetP4, con
 }
 
 
-void PKUTreeMaker::addTypeICorr( edm::Event const & event ){
+void ZPKUTreeMaker::addTypeICorr( edm::Event const & event ){
     TypeICorrMap_.clear();
     edm::Handle<pat::JetCollection> jets_;
     event.getByLabel("slimmedJets", jets_);
@@ -511,106 +508,11 @@ void PKUTreeMaker::addTypeICorr( edm::Event const & event ){
     TypeICorrMap_["corrSumEt"] = corrSumEt;
 }
 
-//-------------------------------------------------------------------------------------------------------------------------------------//
-math::XYZTLorentzVector
-PKUTreeMaker::getNeutrinoP4(double& MetPt, double& MetPhi, TLorentzVector& lep, int lepType){ // Jing
-    double leppt = lep.Pt();
-    double lepphi = lep.Phi();
-    double lepeta = lep.Eta();
-    double lepenergy = lep.Energy();
-    
-    double metpt = MetPt;
-    double metphi = MetPhi;
-    
-    double  px = metpt*cos(metphi);
-    double  py = metpt*sin(metphi);
-    double  pz = 0;
-    double  pxl= leppt*cos(lepphi);
-    double  pyl= leppt*sin(lepphi);
-    double  pzl= leppt*sinh(lepeta);
-    double  El = lepenergy;
-    double  a = pow(MW_,2) + pow(px+pxl,2) + pow(py+pyl,2) - px*px - py*py - El*El + pzl*pzl;
-    double  b = 2.*pzl;
-    double  A = b*b -4.*El*El;
-    double  B = 2.*a*b;
-    double  C = a*a-4.*(px*px+py*py)*El*El;
-    
-    ///////////////////////////pz for fnal
-    double M_mu =  0;
-    
-    //if(lepType==1)M_mu=0.105658367;//mu
-    //if(lepType==0)M_mu=0.00051099891;//electron
-    
-    int type=2; // use the small abs real root
-    
-    a = MW_*MW_ - M_mu*M_mu + 2.0*pxl*px + 2.0*pyl*py;
-    A = 4.0*(El*El - pzl*pzl);
-    B = -4.0*a*pzl;
-    C = 4.0*El*El*(px*px + py*py) - a*a;
-    
-    
-    double tmproot = B*B - 4.0*A*C;
-    
-    if (tmproot<0) {
-        //std::cout << "Complex root detected, taking real part..." << std::endl;
-        pz = - B/(2*A); // take real part of complex roots
-    }
-    else {
-        
-        double tmpsol1 = (-B + sqrt(tmproot))/(2.0*A);
-        double tmpsol2 = (-B - sqrt(tmproot))/(2.0*A);
-        
-        //std::cout << " Neutrino Solutions: " << tmpsol1 << ", " << tmpsol2 << std::endl;
-        
-        if (type == 0 ) {
-            // two real roots, pick the one closest to pz of muon
-            if (TMath::Abs(tmpsol2-pzl) < TMath::Abs(tmpsol1-pzl)) { pz = tmpsol2; }
-            else { pz = tmpsol1; }
-            // if pz is > 300 pick the most central root
-            if ( abs(pz) > 300. ) {
-                if (TMath::Abs(tmpsol1)<TMath::Abs(tmpsol2) ) { pz = tmpsol1; }
-                else { pz = tmpsol2; }
-            }
-        }
-        if (type == 1 ) {
-            // two real roots, pick the one closest to pz of muon
-            if (TMath::Abs(tmpsol2-pzl) < TMath::Abs(tmpsol1-pzl)) { pz = tmpsol2; }
-            else {pz = tmpsol1; }
-        }
-        if (type == 2 ) {
-            // pick the most central root.
-            if (TMath::Abs(tmpsol1)<TMath::Abs(tmpsol2) ) { pz = tmpsol1; }
-            else { pz = tmpsol2; }
-        }
-        /*if (type == 3 ) {
-         // pick the largest value of the cosine
-         TVector3 p3w, p3mu;
-         p3w.SetXYZ(pxl+px, pyl+py, pzl+ tmpsol1);
-         p3mu.SetXYZ(pxl, pyl, pzl );
-         
-         double sinthcm1 = 2.*(p3mu.Perp(p3w))/MW_;
-         p3w.SetXYZ(pxl+px, pyl+py, pzl+ tmpsol2);
-         double sinthcm2 = 2.*(p3mu.Perp(p3w))/MW_;
-         
-         double costhcm1 = sqrt(1. - sinthcm1*sinthcm1);
-         double costhcm2 = sqrt(1. - sinthcm2*sinthcm2);
-         
-         if ( costhcm1 > costhcm2 ) { pz = tmpsol1; otherSol_ = tmpsol2; }
-         else { pz = tmpsol2;otherSol_ = tmpsol1; }
-         
-         }*///end of type3
-        
-    }//endl of if real root
-    
-    //dont correct pt neutrino
-    math::XYZTLorentzVector outP4(px,py,pz,sqrt(px*px+py*py+pz*pz));
-    return outP4;
-    
-}//end neutrinoP4
+
 //---------------------------------------------------
 
 
-bool PKUTreeMaker::hasMatchedPromptElectron(const reco::SuperClusterRef &sc, const edm::Handle<edm::View<pat::Electron> > &eleCol, const edm::Handle<reco::ConversionCollection> &convCol, const math::XYZPoint &beamspot,  float lxyMin, float probMin, unsigned int nHitsBeforeVtxMax) {
+bool ZPKUTreeMaker::hasMatchedPromptElectron(const reco::SuperClusterRef &sc, const edm::Handle<edm::View<pat::Electron> > &eleCol, const edm::Handle<reco::ConversionCollection> &convCol, const math::XYZPoint &beamspot,  float lxyMin, float probMin, unsigned int nHitsBeforeVtxMax) {
     //check if a given SuperCluster matches to at least one GsfElectron having zero expected inner hits
     //and not matching any conversion in the collection passing the quality cuts
     if (sc.isNull()) return false;
@@ -626,7 +528,7 @@ bool PKUTreeMaker::hasMatchedPromptElectron(const reco::SuperClusterRef &sc, con
     return false;
 }
 
-int PKUTreeMaker::matchToTruth(const reco::Photon &pho,
+int ZPKUTreeMaker::matchToTruth(const reco::Photon &pho,
                                       const edm::Handle<edm::View<reco::GenParticle>>
                                       &genParticles, bool &ISRPho, double &dR)
 {
@@ -683,7 +585,7 @@ int PKUTreeMaker::matchToTruth(const reco::Photon &pho,
 
 
 
-void PKUTreeMaker::findFirstNonPhotonMother(const reco::Candidate *particle,
+void ZPKUTreeMaker::findFirstNonPhotonMother(const reco::Candidate *particle,
                                                    int &ancestorPID, int &ancestorStatus){
     if( particle == 0 ){
         printf("SimplePhotonNtupler: ERROR! null candidate pointer, this should never happen\n");
@@ -702,7 +604,7 @@ void PKUTreeMaker::findFirstNonPhotonMother(const reco::Candidate *particle,
 
 //----------------------------------------------------------------
 
-PKUTreeMaker::~PKUTreeMaker()
+ZPKUTreeMaker::~ZPKUTreeMaker()
 {
     // do anything here that needs to be done at desctruction time
    // (e.g. close files, deallocate resources etc.)
@@ -710,7 +612,7 @@ PKUTreeMaker::~PKUTreeMaker()
 
 //-------------------------------------------------------------------------------------------------------------------------------------//
 void
-PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+ZPKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
    using namespace edm;
    isTrue_.clear();
@@ -871,16 +773,13 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        yVlep        = leptonicV.eta();
        phiVlep      = leptonicV.phi();
        massVlep     = leptonicV.mass();
-       mtVlep       = leptonicV.mt();
-       ptlep1       = leptonicV.daughter(1)->pt();
-       etalep1      = leptonicV.daughter(1)->eta();
-       philep1      = leptonicV.daughter(1)->phi();
-       double energylep1     = leptonicV.daughter(1)->energy();
-       if(leptonicV.daughter(0)->isElectron()||leptonicV.daughter(0)->isMuon() ) {
+   
        ptlep1       = leptonicV.daughter(0)->pt();
        etalep1      = leptonicV.daughter(0)->eta();
        philep1      = leptonicV.daughter(0)->phi(); 
-       energylep1     = leptonicV.daughter(0)->energy(); }
+       ptlep2       = leptonicV.daughter(1)->pt();
+       etalep2      = leptonicV.daughter(1)->eta();
+       philep2      = leptonicV.daughter(1)->phi();
 
 
        met          = metCand.pt();
@@ -889,21 +788,7 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        nlooseeles = looseeles->size(); 
        nloosemus = loosemus->size(); 
 
-       TLorentzVector  glepton;
-       glepton.SetPtEtaPhiE(ptlep1, etalep1, philep1, energylep1);
-       math::XYZTLorentzVector neutrinoP4 = getNeutrinoP4(MET_et, MET_phi, glepton, 1);
-       reco::CandidateBaseRef METBaseRef = metHandle->refAt(0);  //?????
-       reco::ShallowCloneCandidate neutrino(METBaseRef, 0 , neutrinoP4);
-       reco::CompositeCandidate WLeptonic;
-       WLeptonic.addDaughter(lepton);
-       WLeptonic.addDaughter(neutrino); 
-       AddFourMomenta addP4;
-       addP4.set(WLeptonic);
-       ptVlepJEC       = WLeptonic.pt();
-       yVlepJEC        = WLeptonic.eta();
-       phiVlepJEC      = WLeptonic.phi();
-       massVlepJEC     = WLeptonic.mass();
-       mtVlepJEC       = WLeptonic.mt();
+ 
 
      //******************************************************************//
      //************************* Photon Jets Information******************//
@@ -940,7 +825,7 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
             if(passEleVeto && (*photons)[ip].isEB() && (*photons)[ip].hadTowOverEm()<0.050 && (*photons)[ip].sigmaIetaIeta()<0.01 && chiso<0.91 && nhiso<(0.33 + exp(0.0044*(*photons)[ip].pt()+0.5809)) && phoiso<(0.61+0.0043*(*photons)[ip].pt())) {istightphoton=1;}
             if(passEleVeto && (*photons)[ip].isEE() && (*photons)[ip].hadTowOverEm()<0.050 && (*photons)[ip].sigmaIetaIeta()<0.0267 && chiso<0.65 && nhiso<(0.93 + exp(0.0040*(*photons)[ip].pt()+0.9402)) && phoiso<(0.54+0.0041*(*photons)[ip].pt())) {istightphoton=1;}
 
-             if(istightphoton==1 && deltaR(photon_eta[ip],photon_phi[ip],etalep1,philep1) > 0.5) {
+             if(istightphoton==1 && deltaR(photon_eta[ip],photon_phi[ip],etalep1,philep1) > 0.5 && deltaR(photon_eta[ip],photon_phi[ip],etalep2,philep2) > 0.5) {
                  if(photon_pt[ip]>photonet) 
                          {
                       iphoton=ip;
@@ -965,6 +850,7 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                photonchiso=std::max((*photons)[iphoton].chargedHadronIso()-rhoVal_*EAch(fabs((*photons)[iphoton].eta())),0.0);
                photonnhiso=std::max((*photons)[iphoton].neutralHadronIso()-rhoVal_*EAnh(fabs((*photons)[iphoton].eta())),0.0);
                drla=deltaR(photon_eta[iphoton],photon_phi[iphoton],etalep1,philep1);
+               drla2=deltaR(photon_eta[iphoton],photon_phi[iphoton],etalep2,philep2);
          }  
 //std::cout<<iphoton<<" "<<photonet<<std::endl;
     
@@ -1013,7 +899,7 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 ak4jet_icsv[ik] = (*ak4jets)[ik].bDiscriminator("pfCombinedInclusiveSecondaryVertexV2BJetTags");   }
           }
     
-    sort (jets.begin (), jets.end (), mysortPt);
+    sort (jets.begin (), jets.end (), ZmysortPt);
            for (size_t i=0;i<jets.size();i++) {
              if(iphoton>0) {
                double drtmp1=deltaR(jets.at(i)->Eta(), jets.at(i)->Phi(), photoneta,photonphi);
@@ -1043,6 +929,8 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
             drj2a=deltaR(jet2eta,jet2phi,photoneta,photonphi);
             drj1l=deltaR(jet1eta,jet1phi,etalep1,philep1);
             drj2l=deltaR(jet2eta,jet2phi,etalep1,philep1);
+            drj1l2=deltaR(jet1eta,jet1phi,etalep2,philep2);
+            drj2l2=deltaR(jet2eta,jet2phi,etalep2,philep2);
             
             TLorentzVector j1p4;
             j1p4.SetPtEtaPhiE(jet1pt, jet1eta, jet1phi, jet1e);
@@ -1073,7 +961,7 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 //-------------------------------------------------------------------------------------------------------------------------------------//
 
 
-void PKUTreeMaker::setDummyValues() {
+void ZPKUTreeMaker::setDummyValues() {
      nVtx           = -1e1;
      triggerWeight  = -1e1;
      pileupWeight   = -1e1;
@@ -1086,15 +974,12 @@ void PKUTreeMaker::setDummyValues() {
      yVlep          = -1e1;
      phiVlep        = -1e1;
      massVlep       = -1e1;
-     mtVlep         = -1e1;
-     ptVlepJEC         = -1e1;
-     yVlepJEC          = -1e1;
-     phiVlepJEC        = -1e1;
-     massVlepJEC       = -1e1;
-     mtVlepJEC         = -1e1;
      ptlep1         = -1e1;
      etalep1        = -1e1;
      philep1        = -1e1;
+     ptlep2         = -1e1;
+     etalep2        = -1e1;
+     philep2        = -1e1;
      met            = -1e1;
      metPhi         = -1e1;
      j1metPhi         = -1e1;
@@ -1142,6 +1027,7 @@ void PKUTreeMaker::setDummyValues() {
      photonnhiso=-1e1;
      iphoton=-1;
      drla=1e1;
+     drla2=1e1;
      passEleVeto=false;
     
      ISRPho = false;
@@ -1163,6 +1049,8 @@ void PKUTreeMaker::setDummyValues() {
      drj2a=1e1;
      drj1l=1e1;
      drj2l=1e1;
+     drj1l2=1e1;
+     drj2l2=1e1;
      Mjj=-1e1;
      deltaeta=-1e1;
      zepp=-1e1;
@@ -1187,12 +1075,12 @@ void PKUTreeMaker::setDummyValues() {
 
 // ------------ method called once each job just before starting event loop  ------------
 void 
-PKUTreeMaker::beginJob()
+ZPKUTreeMaker::beginJob()
 {
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
-void PKUTreeMaker::beginRun(const edm::Run& iRun, const edm::EventSetup& iSetup)
+void ZPKUTreeMaker::beginRun(const edm::Run& iRun, const edm::EventSetup& iSetup)
  {
    bool changed;
    if ( !hltConfig.init(iRun, iSetup, "HLT", changed) ) {
@@ -1221,15 +1109,15 @@ void PKUTreeMaker::beginRun(const edm::Run& iRun, const edm::EventSetup& iSetup)
 
 }
 
-void PKUTreeMaker::endRun(const edm::Run& iRun, const edm::EventSetup& iSetup)
+void ZPKUTreeMaker::endRun(const edm::Run& iRun, const edm::EventSetup& iSetup)
 {
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
 void
-PKUTreeMaker::endJob() {
-  std::cout << "PKUTreeMaker endJob()..." << std::endl;
+ZPKUTreeMaker::endJob() {
+  std::cout << "ZPKUTreeMaker endJob()..." << std::endl;
 }
 
 //define this as a plug-in
-DEFINE_FWK_MODULE(PKUTreeMaker);
+DEFINE_FWK_MODULE(ZPKUTreeMaker);
