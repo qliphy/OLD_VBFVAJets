@@ -1,4 +1,5 @@
 // system include files
+
 #include <iostream>
 #include <memory>
 #include "TMath.h"
@@ -48,6 +49,7 @@
 #include "Math/VectorUtil.h"
 #include "TMath.h"
 #include <TFormula.h>
+#include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 
 struct sortPt
 {
@@ -130,7 +132,7 @@ private:
   // ----------member data ---------------------------
   TTree* outTree_;
 
-  double MW_; //Jing
+  double MW_;
   int nevent, run, ls;
   int nVtx;
   double triggerWeight, lumiWeight, pileupWeight;
@@ -302,7 +304,7 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
    METFilters_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_metFilters");
 
 
-   MW_=80.385; //Jing 
+   MW_=80.385; 
   //now do what ever initialization is needed
   edm::Service<TFileService> fs;
   outTree_ = fs->make<TTree>("PKUCandidates","PKU Candidates");
@@ -412,13 +414,7 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
 
 
 double PKUTreeMaker::getJEC( reco::Candidate::LorentzVector& rawJetP4, const pat::Jet& jet, double& jetCorrEtaMax, std::vector<std::string> jecPayloadNames_ ){
-    std::vector<JetCorrectorParameters> vPar;
-    //         vPar.clear();
-    for ( std::vector<std::string>::const_iterator payloadBegin = jecAK4Labels_.begin(), payloadEnd = jecAK4Labels_.end(), ipayload = payloadBegin; ipayload != payloadEnd; ++ipayload ) {
-        JetCorrectorParameters pars(*ipayload);
-        vPar.push_back(pars);
-    }
-    jecAK4_ = new FactorizedJetCorrector(vPar);
+
     double jetCorrFactor = 1.;
     if ( fabs(rawJetP4.eta()) < jetCorrEtaMax ){
         jecAK4_->setJetEta( rawJetP4.eta() );
@@ -436,13 +432,7 @@ double PKUTreeMaker::getJEC( reco::Candidate::LorentzVector& rawJetP4, const pat
 }
 
 double PKUTreeMaker::getJECOffset( reco::Candidate::LorentzVector& rawJetP4, const pat::Jet& jet, double& jetCorrEtaMax, std::vector<std::string> jecPayloadNames_ ){
-    std::vector<JetCorrectorParameters> vPar;
-    //         vPar.clear();
-    for ( std::vector<std::string>::const_iterator payloadBegin = offsetCorrLabel_.begin(), payloadEnd = offsetCorrLabel_.end(), ipayload = payloadBegin; ipayload != payloadEnd; ++ipayload ) {
-        JetCorrectorParameters pars(*ipayload);
-        vPar.push_back(pars);
-    }
-    jecOffset_ = new FactorizedJetCorrector(vPar);
+
     double jetCorrFactor = 1.;
     if ( fabs(rawJetP4.eta()) < jetCorrEtaMax ){
         jecOffset_->setJetEta( rawJetP4.eta()     );
@@ -473,18 +463,41 @@ void PKUTreeMaker::addTypeICorr( edm::Event const & event ){
     bool skipEM_                    = true;
     double skipEMfractionThreshold_ = 0.9;
     bool skipMuons_                 = true;
+    std::string skipMuonSelection_string = "isGlobalMuon | isStandAloneMuon";
+    StringCutObjectSelector<reco::Candidate>* skipMuonSelection_ = new StringCutObjectSelector<reco::Candidate>(skipMuonSelection_string,true);
+ 
     double jetCorrEtaMax_           = 9.9;
     double type1JetPtThreshold_     = 10.0;
     double corrEx    = 0;
     double corrEy    = 0;
     double corrSumEt = 0;
-    
+
+    std::vector<JetCorrectorParameters> vPar;
+    for ( std::vector<std::string>::const_iterator payloadBegin = jecAK4Labels_.begin(), payloadEnd = jecAK4Labels_.end(), ipayload = payloadBegin; ipayload != payloadEnd; ++ipayload ) {
+        JetCorrectorParameters pars(*ipayload);
+        vPar.push_back(pars);
+    }
+    jecAK4_ = new FactorizedJetCorrector(vPar);
+    vPar.clear();
+
+
+    for ( std::vector<std::string>::const_iterator payloadBegin = offsetCorrLabel_.begin(), payloadEnd = offsetCorrLabel_.end(), ipayload = payloadBegin; ipayload != payloadEnd; ++ipayload ) {
+        JetCorrectorParameters pars(*ipayload);
+        vPar.push_back(pars);
+    }
+    jecOffset_ = new FactorizedJetCorrector(vPar);
+    vPar.clear();
+
+
     for (const pat::Jet &jet : *jets_) {
         double emEnergyFraction = jet.chargedEmEnergyFraction() + jet.neutralEmEnergyFraction();
         if ( skipEM_ && emEnergyFraction > skipEMfractionThreshold_ ) continue;
         
         reco::Candidate::LorentzVector rawJetP4 = jet.correctedP4(0);
         double corr = getJEC(rawJetP4, jet, jetCorrEtaMax_, jetCorrLabel_);
+
+
+/*
         if ( skipMuons_ && jet.muonMultiplicity() != 0 ) {
             for (const pat::Muon &muon : *muons_) {
                 if( !muon.isGlobalMuon() && !muon.isStandAloneMuon() ) continue;
@@ -496,7 +509,25 @@ void PKUTreeMaker::addTypeICorr( edm::Event const & event ){
                 }
             }
         }
+
+*/
+
+     if ( skipMuons_ ) {
+       const std::vector<reco::CandidatePtr> & cands = jet.daughterPtrVector();
+       for ( std::vector<reco::CandidatePtr>::const_iterator cand = cands.begin();
+             cand != cands.end(); ++cand ) {
+     	 const reco::PFCandidate *pfcand = dynamic_cast<const reco::PFCandidate *>(cand->get());
+     	 const reco::Candidate *mu = (pfcand != 0 ? ( pfcand->muonRef().isNonnull() ? pfcand->muonRef().get() : 0) : cand->get());
+         if ( mu != 0 && (*skipMuonSelection_)(*mu) ) {
+           reco::Candidate::LorentzVector muonP4 = (*cand)->p4();
+           rawJetP4 -= muonP4;
+         }
+       }
+     }
+
+
         reco::Candidate::LorentzVector corrJetP4 = corr*rawJetP4;
+
         if ( corrJetP4.pt() > type1JetPtThreshold_ ) {
             reco::Candidate::LorentzVector tmpP4 = jet.correctedP4(0);
             corr = getJECOffset(tmpP4, jet, jetCorrEtaMax_, offsetCorrLabel_);
@@ -513,7 +544,7 @@ void PKUTreeMaker::addTypeICorr( edm::Event const & event ){
 
 //-------------------------------------------------------------------------------------------------------------------------------------//
 math::XYZTLorentzVector
-PKUTreeMaker::getNeutrinoP4(double& MetPt, double& MetPhi, TLorentzVector& lep, int lepType){ // Jing
+PKUTreeMaker::getNeutrinoP4(double& MetPt, double& MetPhi, TLorentzVector& lep, int lepType){
     double leppt = lep.Pt();
     double lepphi = lep.Phi();
     double lepeta = lep.Eta();
@@ -811,7 +842,7 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    for (reco::VertexCollection::const_iterator vtx = vertices->begin(); vtx != vertices->end(); ++vtx) {
      // Replace isFake() for miniAOD because it requires tracks and miniAOD vertices don't have tracks:
     // Vertex.h: bool isFake() const {return (chi2_==0 && ndof_==0 && tracks_.empty());}
-       if (  /*!vtx->isFake() &&*/ 
+       if (  // !vtx->isFake() &&
            !(vtx->chi2()==0 && vtx->ndof()==0) 
            &&  vtx->ndof()>=4. && vtx->position().Rho()<=2.0
            && fabs(vtx->position().Z())<=24.0) {
@@ -822,8 +853,8 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    if ( firstGoodVertex==vertices->end() ) {outTree_->Fill();  return;} // skip event if there are no good PVs
 
 
-    //************************* MET **********************//
-    //*****************************************************************//
+    // ************************* MET ********************** //
+    // ***************************************************************** //
     edm::Handle<pat::METCollection>  METs_;
     bool defaultMET = iEvent.getByToken(metInputToken_ , METs_ );
     if(defaultMET){
@@ -880,7 +911,8 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        ptlep1       = leptonicV.daughter(0)->pt();
        etalep1      = leptonicV.daughter(0)->eta();
        philep1      = leptonicV.daughter(0)->phi(); 
-       energylep1     = leptonicV.daughter(0)->energy(); }
+       energylep1     = leptonicV.daughter(0)->energy(); 
+	   }
 
 
        met          = metCand.pt();
@@ -905,9 +937,9 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        massVlepJEC     = WLeptonic.mass();
        mtVlepJEC       = WLeptonic.mt();
 
-     //******************************************************************//
-     //************************* Photon Jets Information******************//
-     //*******************************************************************//
+     // ****************************************************************** //
+     // ************************* Photon Jets Information****************** //
+     // ******************************************************************* //
          double rhoVal_;
          rhoVal_=-99.;
          rhoVal_ = *rho_;
@@ -968,9 +1000,9 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
          }  
 //std::cout<<iphoton<<" "<<photonet<<std::endl;
     
-             //******************************************************************//
-            //************************* AK4 Jets Information******************//
-             //******************************************************************//
+             // ****************************************************************** //
+            // ************************* AK4 Jets Information****************** //
+             // ****************************************************************** //
     Int_t jetindexphoton12[2] = {-1,-1}; 
 
     std::vector<JetCorrectorParameters> vPar;
