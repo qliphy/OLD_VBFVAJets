@@ -540,6 +540,13 @@ void PKUTreeMaker::addTypeICorr( edm::Event const & event ){
     TypeICorrMap_["corrEx"]    = corrEx;
     TypeICorrMap_["corrEy"]    = corrEy;
     TypeICorrMap_["corrSumEt"] = corrSumEt;
+
+	delete jecAK4_;
+	jecAK4_=0;
+	delete jecOffset_;
+	jecOffset_=0;
+	delete skipMuonSelection_;
+	skipMuonSelection_=0;
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------//
@@ -1099,6 +1106,8 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
          }
    
        outTree_->Fill();
+	   delete jecAK4_;
+	   jecAK4_=0;
    }
    
 
