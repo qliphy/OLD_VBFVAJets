@@ -11,12 +11,18 @@ vetoEleIdLabel = "veto"
 
 goodElectrons = cms.EDProducer("PATElectronIdSelector",
     src = cms.InputTag( "slimmedElectrons" ),
-    idLabel = cms.string(tightEleIdLabel)
+    vertex = cms.InputTag("offlineSlimmedPrimaryVertices"),
+    idLabel = cms.string(tightEleIdLabel),
+    rho = cms.InputTag("fixedGridRhoFastjetAll"),
+    effAreasConfigFile = cms.FileInPath("RecoEgamma/ElectronIdentification/data/Spring15/effAreaElectrons_cone03_pfNeuHadronsAndPhotons_25ns.txt")
 )
 
 vetoElectrons = cms.EDProducer("PATElectronIdSelector",
     src = cms.InputTag( "slimmedElectrons" ),
-    idLabel = cms.string(vetoEleIdLabel)
+    vertex = cms.InputTag("offlineSlimmedPrimaryVertices"),
+    idLabel = cms.string(vetoEleIdLabel),
+    rho = cms.InputTag("fixedGridRhoFastjetAll"),
+    effAreasConfigFile = cms.FileInPath("RecoEgamma/ElectronIdentification/data/Spring15/effAreaElectrons_cone03_pfNeuHadronsAndPhotons_25ns.txt")
 )
 
 

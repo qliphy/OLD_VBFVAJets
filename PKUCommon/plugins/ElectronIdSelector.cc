@@ -40,6 +40,7 @@
 #include <vector>
 #include <sstream>
 #include <cmath>
+#include "RecoEgamma/EgammaTools/interface/EffectiveAreas.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // class definition
@@ -57,7 +58,7 @@ public:
 
 private:  
   // member data
-  edm::InputTag  src_;
+  //edm::InputTag  src_;
   std::string    moduleLabel_;
   std::string    idLabel_;  
   bool           useDetectorIsolation_;
@@ -67,6 +68,10 @@ private:
   bool           applyVetoID_;
   unsigned int nTot_;
   unsigned int nPassed_;
+  edm::EDGetTokenT<pat::ElectronCollection> ElectronToken_;
+  edm::EDGetTokenT<reco::VertexCollection> VertexToken_;
+  edm::EDGetTokenT<double> RhoToken_;
+  EffectiveAreas effectiveAreas_;
 };
 
 
@@ -77,12 +82,16 @@ private:
 
 //______________________________________________________________________________
 ElectronIdSelector::ElectronIdSelector(const edm::ParameterSet& iConfig)
-  : src_    (iConfig.getParameter<edm::InputTag>     ("src"))
-  , moduleLabel_(iConfig.getParameter<std::string>   ("@module_label"))
+//  : src_    (iConfig.getParameter<edm::InputTag>     ("src"))
+  : moduleLabel_(iConfig.getParameter<std::string>   ("@module_label"))
   , idLabel_(iConfig.existsAs<std::string>("idLabel") ? iConfig.getParameter<std::string>("idLabel") : "loose")
   , useDetectorIsolation_(iConfig.existsAs<bool>("useDetectorIsolation") ? iConfig.getParameter<bool>("useDetectorIsolation") : false)
   , nTot_(0)
   , nPassed_(0)
+  , ElectronToken_ (consumes<pat::ElectronCollection> (iConfig.getParameter<edm::InputTag>( "src" ) ) ) 
+  , VertexToken_ (consumes<reco::VertexCollection> (iConfig.getParameter<edm::InputTag>( "vertex" ) ) )
+  , RhoToken_ (consumes<double> (iConfig.getParameter<edm::InputTag>( "rho") ) )
+  , effectiveAreas_( (iConfig.getParameter<edm::FileInPath>("effAreasConfigFile")).fullPath() )
 {
   produces<std::vector<pat::Electron> >();
 
@@ -128,9 +137,10 @@ ElectronIdSelector::~ElectronIdSelector(){}
 void ElectronIdSelector::produce(edm::Event& iEvent,const edm::EventSetup& iSetup)
 {
 
-  edm::Handle<reco::VertexCollection> vtxs;
-  iEvent.getByLabel("offlineSlimmedPrimaryVertices", vtxs);
- 
+  // edm::Handle<reco::VertexCollection> vtxs;
+  //iEvent.getByLabel("offlineSlimmedPrimaryVertices", vtxs);
+   edm::Handle<reco::VertexCollection> vtxs;
+   iEvent.getByToken(VertexToken_, vtxs);
 //  edm::Handle<reco::ConversionCollection> conversions;
 //  iEvent.getByLabel("allConversions", conversions);
 
@@ -140,15 +150,18 @@ void ElectronIdSelector::produce(edm::Event& iEvent,const edm::EventSetup& iSetu
 
   std::auto_ptr<std::vector<pat::Electron> > passingElectrons(new std::vector<pat::Electron >);
 
-  edm::Handle<edm::View<pat::Electron> > electrons;
-  iEvent.getByLabel(src_,electrons);
+//  edm::Handle<edm::View<pat::Electron> > electrons;
+//  iEvent.getByLabel(src_,electrons);
   
+   edm::Handle<pat::ElectronCollection > electrons;
+   iEvent.getByToken(ElectronToken_, electrons);  
+
   bool* isPassing = new bool[electrons->size()];
 
   double rhoVal_;
   rhoVal_=-99.;
   edm::Handle<double> rho;
-  iEvent.getByLabel("fixedGridRhoFastjetAll",rho);
+  iEvent.getByToken(RhoToken_,rho);
   rhoVal_ = *rho;
 
   for(unsigned int iElec=0; iElec<electrons->size(); iElec++) { 
@@ -165,17 +178,23 @@ void ElectronIdSelector::produce(edm::Event& iEvent,const edm::EventSetup& iSetu
     float pt  = ele.pt();
 
     // -------- Compute Detector isolation ------
-    const double PI = 4.0*atan(1.0);
-    float detector_isolation = (ele.dr03TkSumPt() + 
-			       std::max(0.,ele.dr03EcalRecHitSumEt()-1.0) + 
-			       ele.dr03HcalTowerSumEt() - 
-			       PI*0.3*0.3*rhoVal_) / pt;
+//    const double PI = 4.0*atan(1.0);
+//    float detector_isolation = (ele.dr03TkSumPt() + 
+//			       std::max(0.,ele.dr03EcalRecHitSumEt()-1.0) + 
+//			       ele.dr03HcalTowerSumEt() - 
+//			       PI*0.3*0.3*rhoVal_) / pt;
 
 //    float EffArea = ElectronEffectiveArea::GetElectronEffectiveArea( ElectronEffectiveArea::kEleGammaAndNeutralHadronIso03 , eta , ElectronEffectiveArea::kEleEAData2012);
 //    float pfIso03EA = (ele.chargedHadronIso() + std::max(0.,ele.neutralHadronIso() + ele.photonIso() - EffArea*rhoVal_)) / pt;
 
+    float eA = effectiveAreas_.getEffectiveArea(fabs(eta));
+    float pf_isolation = ( ( ele.pfIsolationVariables().sumChargedHadronPt
+                                   + std::max( 0., ele.pfIsolationVariables().sumNeutralHadronEt + ele.pfIsolationVariables().sumPhotonEt - eA*rhoVal_) )
+                                 / pt );
+
     float isolation = 100.;
-    isolation = detector_isolation;
+    isolation = pf_isolation;
+
 //    if(useDetectorIsolation_) isolation = detector_isolation;
 //    else isolation = pfIso03EA;
 
@@ -212,25 +231,25 @@ void ElectronIdSelector::produce(edm::Event& iEvent,const edm::EventSetup& iSetu
     // ---------- cut-based ID -----------------
       ///Spring15
 
-    isTight = (pt>20.) && (mHits<=2) &&
+    isTight = (pt>20.)  &&
       (!vtxFitConversion) &&
-      ((isEB && isolation<0.0354 && sigmaIEtaIEta<0.0101 && dPhiIn<0.0336 && dEtaIn<0.00926 && hoe<0.0597 && ooemoop<0.012 && fabs(d0vtx)<0.0111 && fabs(dzvtx)<0.0466 )  ||
-      (isEE && isolation<0.0646 && sigmaIEtaIEta<0.0279 && dPhiIn<0.0918 && dEtaIn<0.00724 && hoe<0.0615 && ooemoop<0.00999 && fabs(d0vtx)<0.0351 && fabs(dzvtx)<0.417));
+      ((isEB && mHits<=2 && isolation<0.0354 && sigmaIEtaIEta<0.0101 && dPhiIn<0.0336 && dEtaIn<0.00926 && hoe<0.0597 && ooemoop<0.012 && fabs(d0vtx)<0.0111 && fabs(dzvtx)<0.0466 )  ||
+      (isEE && mHits<=1 && isolation<0.0646 && sigmaIEtaIEta<0.0279 && dPhiIn<0.0918 && dEtaIn<0.00724 && hoe<0.0615 && ooemoop<0.00999 && fabs(d0vtx)<0.0351 && fabs(dzvtx)<0.417));
 
-    isMedium = (pt>20.) && (mHits<=1) &&
+    isMedium = (pt>20.)  &&
         (!vtxFitConversion) &&
-        ((isEB && isolation<0.0766 && sigmaIEtaIEta<0.0101 && dPhiIn<0.0336 && dEtaIn<0.0103 && hoe<0.0876 && ooemoop<0.0174 && fabs(d0vtx)<0.0118 && fabs(dzvtx)<0.373) ||
-         (isEE && isolation<0.0678 && sigmaIEtaIEta<0.0283 && dPhiIn<0.114 && dEtaIn<0.00733 && hoe<0.0678 && ooemoop<0.0898 && fabs(d0vtx)<0.0739 && fabs(dzvtx)<0.602));
+        ((isEB && mHits<=2 && isolation<0.0766 && sigmaIEtaIEta<0.0101 && dPhiIn<0.0336 && dEtaIn<0.0103 && hoe<0.0876 && ooemoop<0.0174 && fabs(d0vtx)<0.0118 && fabs(dzvtx)<0.373) ||
+         (isEE && mHits<=1 && isolation<0.0678 && sigmaIEtaIEta<0.0283 && dPhiIn<0.114 && dEtaIn<0.00733 && hoe<0.0678 && ooemoop<0.0898 && fabs(d0vtx)<0.0739 && fabs(dzvtx)<0.602));
 
-    isLoose = (pt>20.) && (mHits<=1) &&
+    isLoose = (pt>20.)  &&
          (!vtxFitConversion) &&
-        ((isEB && isolation<0.0893 && sigmaIEtaIEta<0.0103 && dPhiIn<0.115  && dEtaIn<0.0105  && hoe<0.104 && ooemoop<0.102 && fabs(d0vtx)<0.0261 && fabs(dzvtx)<0.41) ||
-         (isEE && isolation<0.121 && sigmaIEtaIEta<0.0301  && dPhiIn<0.182 && dEtaIn<0.00814 && hoe<0.0897 && ooemoop<0.126 && fabs(d0vtx)<0.118 && fabs(dzvtx)<0.822));
+        ((isEB && mHits<=2 && isolation<0.0893 && sigmaIEtaIEta<0.0103 && dPhiIn<0.115  && dEtaIn<0.0105  && hoe<0.104 && ooemoop<0.102 && fabs(d0vtx)<0.0261 && fabs(dzvtx)<0.41) ||
+         (isEE && mHits<=1 && isolation<0.121 && sigmaIEtaIEta<0.0301  && dPhiIn<0.182 && dEtaIn<0.00814 && hoe<0.0897 && ooemoop<0.126 && fabs(d0vtx)<0.118 && fabs(dzvtx)<0.822));
 
-    isVeto = (pt>10.) && (mHits<=999) &&
+    isVeto = (pt>20.) && 
          (!vtxFitConversion) &&
-        ((isEB && isolation<0.126 && sigmaIEtaIEta<0.0114 && dPhiIn<0.216 && dEtaIn<0.0152 && hoe<0.181 && ooemoop<0.207  && fabs(d0vtx)<0.0564 && fabs(dzvtx)<0.472 ) ||
-         (isEE && isolation<0.144 && sigmaIEtaIEta<0.0352 && dPhiIn<0.237 && dEtaIn<0.0113 && hoe<0.116 && ooemoop<0.174  && fabs(d0vtx)<0.222 && fabs(dzvtx)<0.921));
+        ((isEB && mHits<=2 && isolation<0.126 && sigmaIEtaIEta<0.0114 && dPhiIn<0.216 && dEtaIn<0.0152 && hoe<0.181 && ooemoop<0.207  && fabs(d0vtx)<0.0564 && fabs(dzvtx)<0.472 ) ||
+         (isEE && mHits<=3 && isolation<0.144 && sigmaIEtaIEta<0.0352 && dPhiIn<0.237 && dEtaIn<0.0113 && hoe<0.116 && ooemoop<0.174  && fabs(d0vtx)<0.222 && fabs(dzvtx)<0.921));
 
     /// ------- Finally apply selection --------
     if(applyTightID_ && isTight)   isPassing[iElec]= true;
@@ -239,13 +258,18 @@ void ElectronIdSelector::produce(edm::Event& iEvent,const edm::EventSetup& iSetu
     if(applyVetoID_ && isVeto) isPassing[iElec]= true;
     
  }
-   
-  unsigned int counter=0;
+  
+
+ for (unsigned int iElectron = 0; iElectron < electrons -> size(); iElectron ++)
+   {     if(isPassing[iElectron]) passingElectrons->push_back( electrons -> at(iElectron) );       
+  }
+ 
+/*  unsigned int counter=0;
   edm::View<pat::Electron>::const_iterator tIt, endcands = electrons->end();
   for (tIt = electrons->begin(); tIt != endcands; ++tIt, ++counter) {
     if(isPassing[counter]) passingElectrons->push_back( *tIt );  
   }
-
+*/
   nTot_  +=electrons->size();
   nPassed_+=passingElectrons->size();
 

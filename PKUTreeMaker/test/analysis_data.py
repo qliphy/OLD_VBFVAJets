@@ -4,7 +4,7 @@ process = cms.Process( "TEST" )
 process.options = cms.untracked.PSet(wantSummary = cms.untracked.bool(True),
 				     SkipEvent = cms.untracked.vstring('ProductNotFound'))
 corrJetsOnTheFly = True
-runOnMC = True
+runOnMC = False #True
 #****************************************************************************************************#
 process.load("Configuration.StandardSequences.GeometryRecoDB_cff")
 process.load('Configuration/StandardSequences/FrontierConditions_GlobalTag_condDBv2_cff')
@@ -107,7 +107,7 @@ process.treeDumper = cms.EDAnalyzer("PKUTreeMaker",
                                     electronIDs = cms.InputTag("cutBasedElectronID-Spring15-25ns-V1-standalone-medium"),
                                     looseelectronSrc = cms.InputTag("vetoElectrons"),
                                     electrons = cms.InputTag("slimmedElectrons"),
-                                    conversions = cms.InputTag("reducedEgamma","reducedConversions","PAT"),
+                                    conversions = cms.InputTag("reducedEgamma","reducedConversions","RECO"),
                                     beamSpot = cms.InputTag("offlineBeamSpot","","RECO"),
                                     loosemuonSrc = cms.InputTag("looseMuons"),
                                     hltToken    = cms.InputTag("TriggerResults","","HLT"),
@@ -147,11 +147,10 @@ process.analysis = cms.Path(
 process.load("VAJets.PKUCommon.data.RSGravitonToWW_kMpl01_M_1000_Tune4C_13TeV_pythia8")
 process.source.fileNames = [
 #"/store/mc/RunIIFall15MiniAODv2/WGToLNuG_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/00000/9CA0C44A-D7B8-E511-ABA5-02163E00EAE1.root"
-"/store/mc/RunIIFall15MiniAODv2/WJetsToLNu_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/00000/787A3D31-93BF-E511-9DB5-0025905AC822.root"
-#"/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/10000/FEEA7AEA-12A8-E511-97A6-0025905B860E.root"
+"/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/10000/FEEA7AEA-12A8-E511-97A6-0025905B860E.root"
 ]
                        
-process.maxEvents.input = 1000
+process.maxEvents.input = 500
 
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
 process.MessageLogger.cerr.FwkReport.reportEvery = 100

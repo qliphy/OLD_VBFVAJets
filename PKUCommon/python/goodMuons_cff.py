@@ -5,11 +5,13 @@ looseMuIdLabel = "loose"
 
 goodMuons = cms.EDProducer("PATMuonIdSelector",
     src = cms.InputTag( "slimmedMuons" ),
+    vertex = cms.InputTag("offlineSlimmedPrimaryVertices"),
     idLabel = cms.string(tightMuIdLabel)
 )   
 
 looseMuons = cms.EDProducer("PATMuonIdSelector",
     src = cms.InputTag( "slimmedMuons" ),
+    vertex = cms.InputTag("offlineSlimmedPrimaryVertices"),
     idLabel = cms.string(looseMuIdLabel)
 )   
 

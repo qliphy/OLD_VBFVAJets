@@ -4,13 +4,13 @@ process = cms.Process( "TEST" )
 process.options = cms.untracked.PSet(wantSummary = cms.untracked.bool(True),
 				     SkipEvent = cms.untracked.vstring('ProductNotFound'))
 corrJetsOnTheFly = True
-runOnMC = True
+runOnMC = False
 #****************************************************************************************************#
 process.load("Configuration.StandardSequences.GeometryRecoDB_cff")
 process.load('Configuration/StandardSequences/FrontierConditions_GlobalTag_condDBv2_cff')
 from Configuration.AlCa.GlobalTag import GlobalTag
 if runOnMC:
-   process.GlobalTag.globaltag = '76X_mcRun2_asymptotic_v12' # '74X_mcRun2_asymptotic_v2'#'for version2 miniaod 
+   process.GlobalTag.globaltag = '76X_mcRun2_asymptotic_v12' #'74X_mcRun2_asymptotic_v2'#'for version2 miniaod 
 elif not(runOnMC):
    process.GlobalTag.globaltag = '76X_dataRun2_v15' #'74X_dataRun2_reMiniAOD_v0' #'74X_dataRun2_Prompt_v4' # for 2015D prompt v4
 # 74X_dataRun2_reMiniAOD_v0 for D_05Oct2015
@@ -21,19 +21,21 @@ hltFiltersProcessName = 'RECO'
 if runOnMC:
    hltFiltersProcessName = 'PAT' #'RECO'
 
+#if DOHLTFILTERS and not(runOnMC):
+process.load('CommonTools.RecoAlgos.HBHENoiseFilterResultProducer_cfi')
+
+
 process.load("VAJets.PKUCommon.goodMuons_cff")
 process.load("VAJets.PKUCommon.goodElectrons_cff")
 process.load("VAJets.PKUCommon.goodJets_cff")
 process.load("VAJets.PKUCommon.goodPhotons_cff")
-process.load("VAJets.PKUCommon.leptonicW_cff")
+process.load("VAJets.PKUCommon.leptonicZ_cff")
 
 # If Update
 process.goodMuons.src = "slimmedMuons"
 process.goodElectrons.src = "slimmedElectrons"
 process.goodAK4Jets.src = "slimmedJets"
 process.goodPhotons.src = "slimmedPhotons"
-process.Wtoenu.MET  = "slimmedMETs"
-process.Wtomunu.MET = "slimmedMETs"
 
 #process.goodOfflinePrimaryVertex = cms.EDFilter("VertexSelector",
 #                                       src = cms.InputTag("offlineSlimmedPrimaryVertices"),
@@ -41,11 +43,11 @@ process.Wtomunu.MET = "slimmedMETs"
 #                                       filter = cms.bool(False)
 #                                       )
 
-WBOSONCUT = "pt > 0.0"
+ZBOSONCUT = "pt > 0.0"
 
 process.leptonicVSelector = cms.EDFilter("CandViewSelector",
                                        src = cms.InputTag("leptonicV"),
-                                       cut = cms.string( WBOSONCUT ), 
+                                       cut = cms.string( ZBOSONCUT ), 
                                        filter = cms.bool(False)
                                        )
 
@@ -81,10 +83,9 @@ else:
      ] 
 #end------------JEC on the fly--------
 
- 
-process.load("RecoEgamma/PhotonIdentification/PhotonIDValueMapProducer_cfi")
+process.load("RecoEgamma/PhotonIdentification/PhotonIDValueMapProducer_cfi") 
    
-process.treeDumper = cms.EDAnalyzer("PKUTreeMaker",
+process.treeDumper = cms.EDAnalyzer("ZPKUTreeMaker",
                                     originalNEvents = cms.int32(1),
                                     crossSectionPb = cms.double(1),
                                     targetLumiInvPb = cms.double(1.0),
@@ -92,13 +93,13 @@ process.treeDumper = cms.EDAnalyzer("PKUTreeMaker",
                                     isGen = cms.bool(False),
 				    RunOnMC = cms.bool(runOnMC), 
                                     generator =  cms.InputTag("generator"),
-                                    pileup  =   cms.InputTag("slimmedAddPileupInfo"),  
+                                    pileup  =   cms.InputTag("slimmedAddPileupInfo"),
                                     leptonicVSrc = cms.InputTag("leptonicV"),
                                     rho = cms.InputTag("fixedGridRhoFastjetAll"),   
                                     ak4jetsSrc = cms.InputTag("cleanAK4Jets"),      
 #                                    photonSrc = cms.InputTag("goodPhotons"),
                                     photonSrc = cms.InputTag("slimmedPhotons"),
-                                    genSrc =  cms.InputTag("prunedGenParticles"),  
+                                    genSrc =  cms.InputTag("prunedGenParticles"),       
                                     jecAK4chsPayloadNames = cms.vstring( jecLevelsAK4chs ),
                                     metSrc = cms.InputTag("slimmedMETs"),
                                     vertex = cms.InputTag("offlineSlimmedPrimaryVertices"),  
@@ -107,15 +108,12 @@ process.treeDumper = cms.EDAnalyzer("PKUTreeMaker",
                                     electronIDs = cms.InputTag("cutBasedElectronID-Spring15-25ns-V1-standalone-medium"),
                                     looseelectronSrc = cms.InputTag("vetoElectrons"),
                                     electrons = cms.InputTag("slimmedElectrons"),
-                                    conversions = cms.InputTag("reducedEgamma","reducedConversions","PAT"),
+                                    conversions = cms.InputTag("reducedEgamma","reducedConversions","RECO"),
                                     beamSpot = cms.InputTag("offlineBeamSpot","","RECO"),
                                     loosemuonSrc = cms.InputTag("looseMuons"),
                                     hltToken    = cms.InputTag("TriggerResults","","HLT"),
-                                    elPaths1     = cms.vstring("HLT_Ele23_WPLoose_Gsf_v*", "HLT_Ele23_CaloIdL_TrackIdL_IsoVL_v*"),#SMP-15-004
-                                    elPaths2     = cms.vstring("HLT_Ele27_eta2p1_WP75_Gsf_v*", "HLT_Ele27_eta2p1_WPLoose_Gsf_v*"), #B2G-15-005
-                                    muPaths1     = cms.vstring("HLT_IsoMu20_v*"),#SMP-15-004
-                                    muPaths2     = cms.vstring("HLT_IsoMu20_v*","HLT_IsoTkMu20_v*"), #B2G-15-005
-                                    muPaths3     = cms.vstring("HLT_IsoMu27_v*"), #B2G-15-005
+                                    elPaths     = cms.vstring("HLT_Ele17_Ele12_CaloIdL_TrackIdL_IsoVL_DZ_v*"),
+                                    muPaths     = cms.vstring("HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v*", "HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v*"), 
 				    noiseFilter = cms.InputTag('TriggerResults','', hltFiltersProcessName),
 				    noiseFilterSelection_HBHENoiseFilter = cms.string('Flag_HBHENoiseFilter'),
                                     noiseFilterSelection_HBHENoiseIsoFilter = cms.string("Flag_HBHENoiseIsoFilter"),
@@ -147,14 +145,13 @@ process.analysis = cms.Path(
 process.load("VAJets.PKUCommon.data.RSGravitonToWW_kMpl01_M_1000_Tune4C_13TeV_pythia8")
 process.source.fileNames = [
 #"/store/mc/RunIIFall15MiniAODv2/WGToLNuG_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/00000/9CA0C44A-D7B8-E511-ABA5-02163E00EAE1.root"
-"/store/mc/RunIIFall15MiniAODv2/WJetsToLNu_TuneCUETP8M1_13TeV-amcatnloFXFX-pythia8/MINIAODSIM/PU25nsData2015v1_76X_mcRun2_asymptotic_v12-v1/00000/787A3D31-93BF-E511-9DB5-0025905AC822.root"
-#"/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/10000/FEEA7AEA-12A8-E511-97A6-0025905B860E.root"
+"/store/data/Run2015D/DoubleMuon/MINIAOD/16Dec2015-v1/10000/FEEA7AEA-12A8-E511-97A6-0025905B860E.root"
 ]
                        
 process.maxEvents.input = 1000
 
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
-process.MessageLogger.cerr.FwkReport.reportEvery = 100
+process.MessageLogger.cerr.FwkReport.reportEvery = 200
 process.MessageLogger.cerr.FwkReport.limit = 99999999
 
 process.TFileService = cms.Service("TFileService",

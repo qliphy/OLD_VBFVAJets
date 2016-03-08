@@ -50,6 +50,10 @@
 #include "TMath.h"
 #include <TFormula.h>
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
+#include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
+
+#include "DataFormats/Common/interface/ValueMap.h"
+#include "RecoEgamma/EgammaTools/interface/EffectiveAreas.h"
 
 struct sortPt
 {
@@ -87,7 +91,7 @@ private:
                                   const edm::Handle<reco::ConversionCollection> &convCol, const math::XYZPoint &beamspot,
                                   float lxyMin=2.0, float probMin=1e-6, unsigned int nHitsBeforeVtxMax=0);
   int matchToTruth(const reco::Photon &pho,
-                     const edm::Handle<edm::View<reco::GenParticle>>  &genParticles, bool &ISRPho, double &dR);
+                     const edm::Handle<edm::View<reco::GenParticle>>  &genParticles, bool &ISRPho, double &dR, int &isprompt);
     
   void findFirstNonPhotonMother(const reco::Candidate *particle,
                                   int &ancestorPID, int &ancestorStatus);
@@ -113,21 +117,19 @@ private:
   edm::EDGetTokenT<edm::TriggerResults> 		     noiseFilterToken_;
   edm::Handle< edm::TriggerResults> 			     noiseFilterBits_;
   std::string HBHENoiseFilter_Selector_;
-  edm::EDGetTokenT<bool> EarlyRunsHBHENoiseFilter_Selector_;
-  edm::EDGetTokenT<bool> HBHENoiseFilterResultToken_;
+  std::string HBHENoiseIsoFilter_Selector_;
   std::string CSCHaloNoiseFilter_Selector_;
-  std::string HCALlaserNoiseFilter_Selector_;
   std::string ECALDeadCellNoiseFilter_Selector_;
   std::string GoodVtxNoiseFilter_Selector_;
-  std::string TrkFailureNoiseFilter_Selector_;
   std::string EEBadScNoiseFilter_Selector_;
-  std::string ECALlaserNoiseFilter_Selector_;
-  std::string TrkPOGNoiseFilter_Selector_;
-  std::string TrkPOG_manystrip_NoiseFilter_Selector_;
-  std::string TrkPOG_toomanystrip_NoiseFilter_Selector_;
-  std::string TrkPOG_logError_NoiseFilter_Selector_;
-  std::string METFilters_Selector_;
 
+  edm::EDGetTokenT<edm::ValueMap<float> > full5x5SigmaIEtaIEtaMapToken_;
+  edm::EDGetTokenT<edm::ValueMap<float> > phoChargedIsolationToken_;
+  edm::EDGetTokenT<edm::ValueMap<float> > phoNeutralHadronIsolationToken_;
+  edm::EDGetTokenT<edm::ValueMap<float> > phoPhotonIsolationToken_;
+  EffectiveAreas effAreaChHadrons_;
+  EffectiveAreas effAreaNeuHadrons_;
+  EffectiveAreas effAreaPhotons_;
 
   // ----------member data ---------------------------
   TTree* outTree_;
@@ -139,15 +141,17 @@ private:
   double theWeight;
   double  nump=0.;
   double  numm=0.;
-
-  double ptVlep, yVlep, phiVlep, massVlep, mtVlep;
-  double ptVlepJEC, yVlepJEC, phiVlepJEC, massVlepJEC, mtVlepJEC;
+  double  npT, npIT;
+  int     nBX;
+  double ptVlep, yVlep, phiVlep, massVlep, mtVlep, mtVlepnew;
+  double ptVlepJEC, yVlepJEC, phiVlepJEC, massVlepJEC, mtVlepJEC, mtVlepJECnew;
+  double Mla, Mva;
   double ptlep1, etalep1, philep1;
   int  lep, nlooseeles,nloosemus;
   double met, metPhi, j1metPhi, j2metPhi;
   //Met JEC
   double METraw_et, METraw_phi, METraw_sumEt;
-  double MET_et, MET_phi, MET_sumEt, MET_corrPx, MET_corrPy;
+  double genMET, MET_et, MET_phi, MET_sumEt, MET_corrPx, MET_corrPy;
   double useless;
   // AK4 Jets
   double ak4jet_pt[6],ak4jet_eta[6],ak4jet_phi[6],ak4jet_e[6];
@@ -155,16 +159,22 @@ private:
   double ak4jet_csv[6],ak4jet_icsv[6];
   double drjetlep[6], drjetphoton[6];
   //Photon
+  double genphoton_pt[6],genphoton_eta[6],genphoton_phi[6];
+  double genmuon_pt[6],genmuon_eta[6],genmuon_phi[6];
+  double genelectron_pt[6],genelectron_eta[6],genelectron_phi[6];
   double photon_pt[6],photon_eta[6],photon_phi[6],photon_e[6];
-  double drphotonlep[6];
+  bool   photon_pev[6],photon_pevnew[6],photon_ppsv[6],photon_iseb[6],photon_isee[6];
+  double photon_hoe[6],photon_sieie[6],photon_sieie2[6], photon_chiso[6],photon_nhiso[6],photon_phoiso[6],photon_drla[6],photon_mla[6],photon_mva[6];
+  int      photon_istrue[6], photon_isprompt[6];
   double photonet, photoneta, photonphi, photone;
   double photonsieie, photonphoiso, photonchiso, photonnhiso;
   int iphoton;
   double drla;
-  bool passEleVeto;
+  bool passEleVeto, passEleVetonew, passPixelSeedVeto;
   //Photon gen match
-  std::vector<Int_t>   isTrue_;
+  int   isTrue_;
   bool ISRPho;
+  int isprompt_;
   double dR_;
   //Jets
   double jet1pt, jet1eta, jet1phi, jet1e, jet1csv, jet1icsv;
@@ -172,7 +182,6 @@ private:
   double drj1a, drj2a, drj1l, drj2l;
   double Mjj, deltaeta, zepp;
    
-  edm::InputTag electronIdTag_;
   void setDummyValues();
     
   /// Parameters to steer the treeDumper
@@ -181,73 +190,73 @@ private:
   double targetLumiInvPb_;
   std::string PKUChannel_;
   bool isGen_ , RunOnMC_;
-  std::string leptonicVSrc_;
-  std::string ak4jetsSrc_;
   std::vector<std::string> jecAK4Labels_;
   //correction jet
   FactorizedJetCorrector* jecAK4_;
-  std::string photonSrc_;
-  std::string gravitonSrc_, metSrc_;
+  std::string gravitonSrc_;
   std::map<std::string,double>  TypeICorrMap_;
   edm::InputTag mets_;
 
   //High Level Trigger
   HLTConfigProvider hltConfig;
   edm::EDGetTokenT<edm::TriggerResults> hltToken_;
-  std::vector<std::string> elPaths_;
-  std::vector<std::string> muPaths_;
-  std::vector<std::string> elPaths;
-  std::vector<std::string> muPaths;
-  int  HLT_Ele;
-  int  HLT_Mu;
+  std::vector<std::string> elPaths1_, elPaths2_;
+  std::vector<std::string> muPaths1_, muPaths2_, muPaths3_;
+  std::vector<std::string> elPaths1, elPaths2;
+  std::vector<std::string> muPaths1, muPaths2, muPaths3;
+  int  HLT_Ele1, HLT_Ele2;
+  int  HLT_Mu1, HLT_Mu2, HLT_Mu3;
 
 // filter
   bool passFilter_HBHE_                   ;
+  bool passFilter_HBHEIso_                ;
   bool passFilter_CSCHalo_                ;
-  bool passFilter_HCALlaser_              ;
   bool passFilter_ECALDeadCell_           ;
   bool passFilter_GoodVtx_                ;
-  bool passFilter_TrkFailure_             ;
   bool passFilter_EEBadSc_                ;
-  bool passFilter_ECALlaser_              ;
-  bool passFilter_TrkPOG_                 ;
-  bool passFilter_TrkPOG_manystrip_       ;
-  bool passFilter_TrkPOG_toomanystrip_    ;
-  bool passFilter_TrkPOG_logError_        ;
-  bool passFilter_METFilters_             ;
 
+  edm::EDGetTokenT<GenEventInfoProduct> GenToken_;
+  edm::EDGetTokenT<std::vector<PileupSummaryInfo>> PUToken_;
+  edm::EDGetTokenT<edm::View<reco::Candidate>> leptonicVSrc_;
+  edm::EDGetTokenT<edm::View<pat::Jet>> ak4jetsSrc_;
+  edm::EDGetTokenT<edm::View<pat::Photon>> photonSrc_;
+  edm::EDGetTokenT<edm::View<reco::GenParticle>> genSrc_;
+  edm::EDGetTokenT<edm::View<reco::Candidate>> metSrc_;
+  edm::EDGetTokenT<reco::VertexCollection> VertexToken_;
+  edm::EDGetTokenT<pat::JetCollection> t1jetSrc_;
+  edm::EDGetTokenT<edm::View<pat::Muon>> t1muSrc_;
 };
 
 float PKUTreeMaker::EAch( float x){
- float EA = 0.0158;
- if(x>1.0)   EA = 0.0143;
- if(x>1.479) EA = 0.0115;
- if(x>2.0)   EA = 0.0094;
- if(x>2.2)   EA = 0.0095;
- if(x>2.3)   EA = 0.0068;
- if(x>2.4)   EA = 0.0053;
+ float EA = 0.0;
+ if(x>1.0)   EA = 0.0;
+ if(x>1.479) EA = 0.0;
+ if(x>2.0)   EA = 0.0;
+ if(x>2.2)   EA = 0.0;
+ if(x>2.3)   EA = 0.0;
+ if(x>2.4)   EA = 0.0;
  return EA;
 }
 
 float PKUTreeMaker::EAnh( float x){
- float EA = 0.0143;
- if(x>1.0)   EA = 0.0210;
- if(x>1.479) EA = 0.0147;
- if(x>2.0)   EA = 0.0082;
- if(x>2.2)   EA = 0.0124;
- if(x>2.3)   EA = 0.0186;
- if(x>2.4)   EA = 0.0320;
+ float EA = 0.0599;
+ if(x>1.0)   EA = 0.0819;
+ if(x>1.479) EA = 0.0696;
+ if(x>2.0)   EA = 0.0360;
+ if(x>2.2)   EA = 0.0360;
+ if(x>2.3)   EA = 0.0462;
+ if(x>2.4)   EA = 0.0656;
  return EA;
 }
 
 float PKUTreeMaker::EApho( float x){
- float EA = 0.0725;
- if(x>1.0)   EA = 0.0604;
- if(x>1.479) EA = 0.0320;
- if(x>2.0)   EA = 0.0512;
- if(x>2.2)   EA = 0.0766;
- if(x>2.3)   EA = 0.0949;
- if(x>2.4)   EA = 0.1160;
+ float EA = 0.1271;
+ if(x>1.0)   EA = 0.1101;
+ if(x>1.479) EA = 0.0756;
+ if(x>2.0)   EA = 0.1175;
+ if(x>2.2)   EA = 0.1498;
+ if(x>2.3)   EA = 0.1857;
+ if(x>2.4)   EA = 0.2183;
  return EA;
 }
 
@@ -255,54 +264,64 @@ float PKUTreeMaker::EApho( float x){
 //
 // constructors and destructor
 //
-PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
-  hltToken_(consumes<edm::TriggerResults>(iConfig.getParameter<edm::InputTag>("hltToken"))),
-  elPaths_(iConfig.getParameter<std::vector<std::string>>("elPaths")),
-  muPaths_(iConfig.getParameter<std::vector<std::string>>("muPaths"))
+PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig)//:
+  :effAreaChHadrons_((iConfig.getParameter<edm::FileInPath>("effAreaChHadFile")).fullPath() )
+  ,effAreaNeuHadrons_((iConfig.getParameter<edm::FileInPath>("effAreaNeuHadFile")).fullPath() )
+  ,effAreaPhotons_((iConfig.getParameter<edm::FileInPath>("effAreaPhoFile")).fullPath() )
 {
+  hltToken_=consumes<edm::TriggerResults>(iConfig.getParameter<edm::InputTag>("hltToken"));
+  elPaths1_=iConfig.getParameter<std::vector<std::string>>("elPaths1");
+  elPaths2_=iConfig.getParameter<std::vector<std::string>>("elPaths2");
+  muPaths1_=iConfig.getParameter<std::vector<std::string>>("muPaths1");
+  muPaths2_=iConfig.getParameter<std::vector<std::string>>("muPaths2");
+  muPaths3_=iConfig.getParameter<std::vector<std::string>>("muPaths3");
+  GenToken_=consumes<GenEventInfoProduct> (iConfig.getParameter<edm::InputTag>( "generator") ) ;
+  PUToken_=consumes<std::vector<PileupSummaryInfo>>(iConfig.getParameter<edm::InputTag>("pileup") ) ;
+  leptonicVSrc_=consumes<edm::View<reco::Candidate> >(iConfig.getParameter<edm::InputTag>( "leptonicVSrc") ) ;
+  ak4jetsSrc_      = consumes<edm::View<pat::Jet>>(iConfig.getParameter<edm::InputTag>( "ak4jetsSrc") ) ;
+  photonSrc_      = consumes<edm::View<pat::Photon>>(iConfig.getParameter<edm::InputTag>( "photonSrc") ) ;
+  genSrc_      = consumes<edm::View<reco::GenParticle>>(iConfig.getParameter<edm::InputTag>( "genSrc") ) ;
+  metSrc_      = consumes<edm::View<reco::Candidate>>(iConfig.getParameter<edm::InputTag>( "metSrc") ) ;
+  VertexToken_ =consumes<reco::VertexCollection> (iConfig.getParameter<edm::InputTag>( "vertex" ) ) ;
+  t1jetSrc_      = consumes<pat::JetCollection>(iConfig.getParameter<edm::InputTag>( "t1jetSrc") ) ;
+  t1muSrc_      = consumes<edm::View<pat::Muon>>(iConfig.getParameter<edm::InputTag>( "t1muSrc") ) ;
   originalNEvents_ = iConfig.getParameter<int>("originalNEvents");
   crossSectionPb_  = iConfig.getParameter<double>("crossSectionPb");
   targetLumiInvPb_ = iConfig.getParameter<double>("targetLumiInvPb");
   PKUChannel_     = iConfig.getParameter<std::string>("PKUChannel");
   isGen_           = iConfig.getParameter<bool>("isGen");
   RunOnMC_           = iConfig.getParameter<bool>("RunOnMC");
-  leptonicVSrc_ = iConfig.getParameter<std::string>("leptonicVSrc");
   rhoToken_  = consumes<double>(iConfig.getParameter<edm::InputTag>("rho"));
-  ak4jetsSrc_      = iConfig.getParameter<std::string>("ak4jetsSrc");
   jecAK4Labels_   =  iConfig.getParameter<std::vector<std::string>>("jecAK4chsPayloadNames");
-  metSrc_          = iConfig.getParameter<std::string>("metSrc");
   metToken_ = consumes<pat::METCollection>(iConfig.getParameter<edm::InputTag>("metSrc"));
   mettokens.push_back( metToken_ );
   metInputToken_ = mettokens[0];
-  electronIdTag_   = iConfig.getParameter<edm::InputTag>("electronIDs");
   electronToken_    = (consumes<edm::View<pat::Electron> > (iConfig.getParameter<edm::InputTag>("electrons")))            ;
   looseelectronToken_    = (consumes<edm::View<pat::Electron> > (iConfig.getParameter<edm::InputTag>("looseelectronSrc"))) ;
   loosemuonToken_    = (consumes<edm::View<pat::Muon> > (iConfig.getParameter<edm::InputTag>("loosemuonSrc")))              ;
-  photonSrc_      = iConfig.getParameter<std::string>("photonSrc");
   beamSpotToken_    = (consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))) ;
   conversionsToken_ = (consumes<std::vector<reco::Conversion> >(iConfig.getParameter<edm::InputTag>("conversions"))) ;
     
-   
-   jetCorrLabel_ = jecAK4Labels_;
-   offsetCorrLabel_.push_back(jetCorrLabel_[0]);
+  jetCorrLabel_ = jecAK4Labels_;
+  offsetCorrLabel_.push_back(jetCorrLabel_[0]);
 
 // filter
    noiseFilterToken_ = consumes<edm::TriggerResults>(iConfig.getParameter<edm::InputTag>("noiseFilter"));
-   HBHENoiseFilterResultToken_ = consumes<bool>(iConfig.getParameter<edm::InputTag>("noiseFilterSelection_EarlyRunsHBHENoiseFilter"));
    HBHENoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_HBHENoiseFilter");
+   HBHENoiseIsoFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_HBHENoiseIsoFilter");  
    CSCHaloNoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_CSCTightHaloFilter");
-   HCALlaserNoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_hcalLaserEventFilter");
    ECALDeadCellNoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_EcalDeadCellTriggerPrimitiveFilter");
    GoodVtxNoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_goodVertices");
-   TrkFailureNoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_trackingFailureFilter");
    EEBadScNoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_eeBadScFilter");
-   ECALlaserNoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_ecalLaserCorrFilter");
-   TrkPOGNoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_trkPOGFilters");
-   TrkPOG_manystrip_NoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_trkPOG_manystripclus53X");
-   TrkPOG_toomanystrip_NoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_trkPOG_toomanystripclus53X");
-   TrkPOG_logError_NoiseFilter_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_trkPOG_logErrorTooManyClusters");
-   METFilters_Selector_ =  iConfig.getParameter<std::string> ("noiseFilterSelection_metFilters");
 
+   full5x5SigmaIEtaIEtaMapToken_=(consumes <edm::ValueMap<float> >
+				(iConfig.getParameter<edm::InputTag>("full5x5SigmaIEtaIEtaMap")));
+   phoChargedIsolationToken_=(consumes <edm::ValueMap<float> >
+     			        (iConfig.getParameter<edm::InputTag>("phoChargedIsolation")));
+   phoNeutralHadronIsolationToken_=(consumes <edm::ValueMap<float> >
+                                (iConfig.getParameter<edm::InputTag>("phoNeutralHadronIsolation")));
+   phoPhotonIsolationToken_=(consumes <edm::ValueMap<float> >
+			        (iConfig.getParameter<edm::InputTag>("phoPhotonIsolation")));
 
    MW_=80.385; 
   //now do what ever initialization is needed
@@ -315,26 +334,61 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
   outTree_->Branch("theWeight"           ,&theWeight         ,"theWeight/D"          );
   outTree_->Branch("nump"           ,&nump         ,"nump/D"          );
   outTree_->Branch("numm"           ,&numm         ,"numm/D"          );
+  outTree_->Branch("npT"           ,&npT         ,"npT/D"          );
+//  outTree_->Branch("npIT"           ,&npIT         ,"npIT/D"          );
+//  outTree_->Branch("nBX"           ,&nBX         ,"nBX/I"          );
   outTree_->Branch("lep"             ,&lep            ,"lep/I"            );
   outTree_->Branch("ptVlep"          ,&ptVlep         ,"ptVlep/D"         );
-  outTree_->Branch("yVlep"           ,&yVlep          ,"yVlep/D"          );
-  outTree_->Branch("phiVlep"         ,&phiVlep        ,"phiVlep/D"        );
-  outTree_->Branch("massVlep"        ,&massVlep       ,"massVlep/D"       );
-  outTree_->Branch("mtVlep"          ,&mtVlep         ,"mtVlep/D"         );
+//  outTree_->Branch("yVlep"           ,&yVlep          ,"yVlep/D"          );
+//  outTree_->Branch("phiVlep"         ,&phiVlep        ,"phiVlep/D"        );
+//  outTree_->Branch("massVlep"        ,&massVlep       ,"massVlep/D"       );
+//  outTree_->Branch("mtVlep"          ,&mtVlep         ,"mtVlep/D"         );
+//  outTree_->Branch("mtVlepnew"          ,&mtVlepnew         ,"mtVlepnew/D"         );
   outTree_->Branch("ptVlepJEC"          ,&ptVlepJEC         ,"ptVlepJEC/D"         );
   outTree_->Branch("yVlepJEC"           ,&yVlepJEC          ,"yVlepJEC/D"          );
   outTree_->Branch("phiVlepJEC"         ,&phiVlepJEC        ,"phiVlepJEC/D"        );
   outTree_->Branch("massVlepJEC"        ,&massVlepJEC       ,"massVlepJEC/D"       );
-  outTree_->Branch("mtVlepJEC"          ,&mtVlepJEC         ,"mtVlepJEC/D"         );
+//  outTree_->Branch("mtVlepJEC"          ,&mtVlepJEC         ,"mtVlepJEC/D"         );
+  outTree_->Branch("mtVlepJECnew"          ,&mtVlepJECnew         ,"mtVlepJECnew/D"         );
+  outTree_->Branch("Mla"          ,&Mla         ,"Mla/D"         );
+  outTree_->Branch("Mva"          ,&Mva         ,"Mva/D"         );
   outTree_->Branch("nlooseeles"          ,&nlooseeles         ,"nlooseeles/I"         );
   outTree_->Branch("nloosemus"          ,&nloosemus         ,"nloosemus/I"         );
+
+  outTree_->Branch("genphoton_pt"        , genphoton_pt       ,"genphoton_pt[6]/D"       );
+  outTree_->Branch("genphoton_eta"        , genphoton_eta       ,"genphoton_eta[6]/D"       );
+  outTree_->Branch("genphoton_phi"        , genphoton_phi       ,"genphoton_phi[6]/D"       );
+  outTree_->Branch("genmuon_pt"        , genmuon_pt       ,"genmuon_pt[6]/D"       );
+  outTree_->Branch("genmuon_eta"        , genmuon_eta       ,"genmuon_eta[6]/D"       );
+  outTree_->Branch("genmuon_phi"        , genmuon_phi       ,"genmuon_phi[6]/D"       );
+  outTree_->Branch("genelectron_pt"        , genelectron_pt       ,"genelectron_pt[6]/D"       );
+  outTree_->Branch("genelectron_eta"        , genelectron_eta       ,"genelectron_eta[6]/D"       );
+  outTree_->Branch("genelectron_phi"        , genelectron_phi       ,"genelectron_phi[6]/D"       );
 
   /// Photon
   outTree_->Branch("photon_pt"        , photon_pt       ,"photon_pt[6]/D"       );
   outTree_->Branch("photon_eta"        , photon_eta       ,"photon_eta[6]/D"       );
   outTree_->Branch("photon_phi"        , photon_phi       ,"photon_phi[6]/D"       );
   outTree_->Branch("photon_e"        , photon_e       ,"photon_e[6]/D"       );
+  outTree_->Branch("photon_pev"        , photon_pev       ,"photon_pev[6]/O"       );
+  outTree_->Branch("photon_pevnew"        , photon_pevnew       ,"photon_pevnew[6]/O"       );
+  outTree_->Branch("photon_ppsv"        , photon_ppsv       ,"photon_ppsv[6]/O"       );
+  outTree_->Branch("photon_iseb"        , photon_iseb       ,"photon_iseb[6]/O"       );
+  outTree_->Branch("photon_isee"        , photon_isee       ,"photon_isee[6]/O"       );
+  outTree_->Branch("photon_hoe"        , photon_hoe       ,"photon_hoe[6]/D"       );
+  outTree_->Branch("photon_sieie"        , photon_sieie       ,"photon_sieie[6]/D"       );
+  outTree_->Branch("photon_sieie2"        , photon_sieie2       ,"photon_sieie2[6]/D"       );
+  outTree_->Branch("photon_chiso"        , photon_chiso       ,"photon_chiso[6]/D"       );
+  outTree_->Branch("photon_nhiso"        , photon_nhiso       ,"photon_nhiso[6]/D"       );
+  outTree_->Branch("photon_phoiso"        , photon_phoiso       ,"photon_phoiso[6]/D"       );
+  outTree_->Branch("photon_istrue"        , photon_istrue       ,"photon_istrue[6]/I"       );
+  outTree_->Branch("photon_isprompt"        , photon_isprompt       ,"photon_isprompt[6]/I"       );
+  outTree_->Branch("photon_drla"        , photon_drla       ,"photon_drla[6]/D"       );
+  outTree_->Branch("photon_mla"        , photon_mla       ,"photon_mla[6]/D"       );
+  outTree_->Branch("photon_mva"        , photon_mva       ,"photon_mva[6]/D"       );
   outTree_->Branch("passEleVeto"        , &passEleVeto       ,"passEleVeto/O"       );
+  outTree_->Branch("passEleVetonew"        , &passEleVetonew       ,"passEleVetonew/O"       );
+  outTree_->Branch("passPixelSeedVeto"        , &passPixelSeedVeto       ,"passPixelSeedVeto/O"       );
   outTree_->Branch("photonet"          ,&photonet         ,"photonet/D"         );
   outTree_->Branch("photoneta"          ,&photoneta         ,"photoneta/D"         );
   outTree_->Branch("photonphi"          ,&photonphi         ,"photonphi/D"         );
@@ -346,10 +400,18 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
   outTree_->Branch("iphoton"             ,&iphoton            ,"iphoton/I"            );
   outTree_->Branch("drla"          ,&drla         ,"drla/D"         );
     //photon gen match
-    outTree_->Branch("dR"    , &dR_, "dR/D");
-    outTree_->Branch("ISRPho"        , &ISRPho       ,"ISRPho/O"       );
-    outTree_->Branch("isTrue", &isTrue_);
+//    outTree_->Branch("dR"    , &dR_, "dR/D");
+//    outTree_->Branch("ISRPho"        , &ISRPho       ,"ISRPho/O"       );
+    outTree_->Branch("isTrue", &isTrue_, "isTrue/I");
+    outTree_->Branch("isprompt"    , &isprompt_, "isprompt/I");
+
 //jets
+  outTree_->Branch("ak4jet_pt"        , ak4jet_pt       ,"ak4jet_pt[6]/D"       );
+  outTree_->Branch("ak4jet_eta"        , ak4jet_eta       ,"ak4jet_eta[6]/D"       );
+  outTree_->Branch("ak4jet_phi"        , ak4jet_phi       ,"ak4jet_phi[6]/D"       );
+  outTree_->Branch("ak4jet_e"        , ak4jet_e       ,"ak4jet_e[6]/D"       );
+  outTree_->Branch("ak4jet_csv"        , ak4jet_csv       ,"ak4jet_csv[6]/D"       );
+  outTree_->Branch("ak4jet_icsv"        , ak4jet_icsv       ,"ak4jet_icsv[6]/D"       );
   outTree_->Branch("jet1pt"          ,&jet1pt         ,"jet1pt/D"         );
   outTree_->Branch("jet1eta"          ,&jet1eta         ,"jet1eta/D"         );
   outTree_->Branch("jet1phi"          ,&jet1phi         ,"jet1phi/D"         );
@@ -381,6 +443,7 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
   outTree_->Branch("METraw_et",&METraw_et,"METraw_et/D");
   outTree_->Branch("METraw_phi",&METraw_phi,"METraw_phi/D");
   outTree_->Branch("METraw_sumEt",&METraw_sumEt,"METraw_sumEt/D");
+  outTree_->Branch("genMET",&genMET,"genMET/D");
   outTree_->Branch("MET_et",&MET_et,"MET_et/D");
   outTree_->Branch("MET_phi",&MET_phi,"MET_phi/D");
   outTree_->Branch("MET_sumEt",&MET_sumEt,"MET_sumEt/D");
@@ -388,26 +451,24 @@ PKUTreeMaker::PKUTreeMaker(const edm::ParameterSet& iConfig):
   outTree_->Branch("MET_corrPy",&MET_corrPy,"MET_corrPy/D");
 
   //HLT bits
-  outTree_->Branch("HLT_Ele"  ,&HLT_Ele ,"HLT_Ele/I" );
-  outTree_->Branch("HLT_Mu"   ,&HLT_Mu  ,"HLT_Mu/I"  );
+  outTree_->Branch("HLT_Ele1"  ,&HLT_Ele1 ,"HLT_Ele1/I" );
+  outTree_->Branch("HLT_Ele2"  ,&HLT_Ele2 ,"HLT_Ele2/I" );
+  outTree_->Branch("HLT_Mu1"   ,&HLT_Mu1  ,"HLT_Mu1/I"  );
+  outTree_->Branch("HLT_Mu2"   ,&HLT_Mu2  ,"HLT_Mu2/I"  );
+  outTree_->Branch("HLT_Mu3"   ,&HLT_Mu3  ,"HLT_Mu3/I"  );
+
   
   // filter
   outTree_->Branch("passFilter_HBHE"                 ,&passFilter_HBHE_                ,"passFilter_HBHE_/O");
+  outTree_->Branch("passFilter_HBHEIso"                 ,&passFilter_HBHEIso_                ,"passFilter_HBHEIso_/O");
   outTree_->Branch("passFilter_CSCHalo"              ,&passFilter_CSCHalo_             ,"passFilter_CSCHalo_/O");
-  outTree_->Branch("passFilter_HCALlaser"            ,&passFilter_HCALlaser_           ,"passFilter_HCALlaser_/O");
   outTree_->Branch("passFilter_ECALDeadCell"         ,&passFilter_ECALDeadCell_        ,"passFilter_ECALDeadCell_/O");
   outTree_->Branch("passFilter_GoodVtx"              ,&passFilter_GoodVtx_             ,"passFilter_GoodVtx_/O");
-  outTree_->Branch("passFilter_TrkFailure"           ,&passFilter_TrkFailure_          ,"passFilter_TrkFailure_/O");
   outTree_->Branch("passFilter_EEBadSc"              ,&passFilter_EEBadSc_             ,"passFilter_EEBadSc_/O");
-  outTree_->Branch("passFilter_ECALlaser"            ,&passFilter_ECALlaser_           ,"passFilter_ECALlaser_/O");
-  outTree_->Branch("passFilter_TrkPOG"               ,&passFilter_TrkPOG_              ,"passFilter_TrkPOG_/O");
-  outTree_->Branch("passFilter_TrkPOG_manystrip"     ,&passFilter_TrkPOG_manystrip_    ,"passFilter_TrkPOG_manystrip_/O");
-  outTree_->Branch("passFilter_TrkPOG_toomanystrip"  ,&passFilter_TrkPOG_toomanystrip_ ,"passFilter_TrkPOG_toomanystrip_/O");
-  outTree_->Branch("passFilter_TrkPOG_logError"      ,&passFilter_TrkPOG_logError_     ,"passFilter_TrkPOG_logError_/O");
-  outTree_->Branch("passFilter_METFilters"           ,&passFilter_METFilters_          ,"passFilter_METFilters_/O");
+
 
   /// Other quantities
-  outTree_->Branch("triggerWeight"   ,&triggerWeight  ,"triggerWeight/D"  );
+//  outTree_->Branch("triggerWeight"   ,&triggerWeight  ,"triggerWeight/D"  );
   outTree_->Branch("lumiWeight"      ,&lumiWeight     ,"lumiWeight/D"     );
   outTree_->Branch("pileupWeight"    ,&pileupWeight   ,"pileupWeight/D"   );
 }
@@ -453,12 +514,12 @@ double PKUTreeMaker::getJECOffset( reco::Candidate::LorentzVector& rawJetP4, con
 void PKUTreeMaker::addTypeICorr( edm::Event const & event ){
     TypeICorrMap_.clear();
     edm::Handle<pat::JetCollection> jets_;
-    event.getByLabel("slimmedJets", jets_);
+    event.getByToken(t1jetSrc_, jets_);
     event.getByToken(rhoToken_      , rho_     );
     edm::Handle<reco::VertexCollection> vertices_;
-    event.getByLabel("offlineSlimmedPrimaryVertices", vertices_);
+    event.getByToken(VertexToken_, vertices_);
     edm::Handle<edm::View<pat::Muon>> muons_;
-    event.getByLabel("slimmedMuons",muons_);
+    event.getByToken(t1muSrc_,muons_);
 
     bool skipEM_                    = true;
     double skipEMfractionThreshold_ = 0.9;
@@ -666,30 +727,32 @@ bool PKUTreeMaker::hasMatchedPromptElectron(const reco::SuperClusterRef &sc, con
 
 int PKUTreeMaker::matchToTruth(const reco::Photon &pho,
                                       const edm::Handle<edm::View<reco::GenParticle>>
-                                      &genParticles, bool &ISRPho, double &dR)
+                                      &genParticles, bool &ISRPho, double &dR, int &isprompt)
 {
     //
     // Explicit loop and geometric matching method
     //
     
     // Find the closest status 1 gen photon to the reco photon
-  //  double dR = 999;
+    dR = 999;
     const reco::Candidate *closestPhoton = 0;
   //std::cout<<"genParticles->size() = "<<genParticles->size()<<std::endl;
+    int im=0;
+
     for(size_t i=0; i<genParticles->size();i++){
         const reco::Candidate *particle = &(*genParticles)[i];
-        // Drop everything that is not photon or not status 1
+
+//        std::cout<<"xxx"<<(*genParticles)[i].isPromptFinalState()<<std::endl;
         if( abs(particle->pdgId()) != 22 || particle->status() != 1 )
         continue;
-//    std::cout<<"particle->pdgId()) = "<<particle->pdgId()<<std::endl;    
-//        double dRtmp = ROOT::Math::VectorUtil::DeltaR( pho.p4(), particle->p4() );
-//std::cout<<"pho->superCluster()->eta(),pho->superCluster()->phi(),particle->eta(),particle->phi()"<<pho.eta()<<" "<<pho.phi()<<" "<<particle->eta()<<" "<<particle->phi()<<std::endl;  
-    double dRtmp = deltaR(pho.eta(),pho.phi(),particle->eta(),particle->phi());  
-      if( dRtmp < dR ){
+    
+        double dRtmp = deltaR(pho.eta(),pho.phi(),particle->eta(),particle->phi());  
+
+        if( dRtmp < dR ){
             dR = dRtmp;
+            im=i;    
             closestPhoton = particle;
-        }
-//std::cout<<"closestPhoton ="<<closestPhoton->pdgId()<<std::endl;    
+         }
   }
     // See if the closest photon (if it exists) is close enough.
     // If not, no match found.
@@ -697,12 +760,15 @@ int PKUTreeMaker::matchToTruth(const reco::Photon &pho,
         return UNMATCHED;
        // ISRPho = false;
     }
+     isprompt=(*genParticles)[im].isPromptFinalState();
+       
+
     // Find ID of the parent of the found generator level photon match
     int ancestorPID = -999;
     int ancestorStatus = -999;
     findFirstNonPhotonMother(closestPhoton, ancestorPID, ancestorStatus);
     // Allowed parens: quarks pdgId 1-5, or a gluon 21
-    std::vector<int> allowedParents { -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, -21, 21,-11,11,-13,13,-23,23,-24,24 };
+    std::vector<int> allowedParents { -1, 1, -2, 2, -3, 3, -4, 4, -5, 5, 21,-11,11,-13,13,-15,15,23,-24,24 };
     if( !(std::find(allowedParents.begin(),
                     allowedParents.end(), ancestorPID)
           != allowedParents.end()) ){
@@ -711,7 +777,8 @@ int PKUTreeMaker::matchToTruth(const reco::Photon &pho,
         return MATCHED_FROM_PI0;
        // ISRPho =true;
         else
-      std::cout<<"Mother = "<<abs(ancestorPID)<<std::endl;
+//      std::cout<<"Mother = "<<abs(ancestorPID)<<" "<<closestPhoton->mother(0)->pdgId()<<" "<<closestPhoton->mother(0)->status()<<std::endl;
+//      std::cout<<"Run="<<run<<" Event="<<nevent<<" lumi="<<ls<<std::endl;
         return MATCHED_FROM_OTHER_SOURCES;
       //  ISRPho =true;
     }
@@ -750,29 +817,67 @@ PKUTreeMaker::~PKUTreeMaker()
 void
 PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
-   using namespace edm;
-   isTrue_.clear();
+    using namespace edm;
    setDummyValues(); //Initalize variables with dummy values
    nevent = iEvent.eventAuxiliary().event();
    run    = iEvent.eventAuxiliary().run();
    ls     = iEvent.eventAuxiliary().luminosityBlock();
+
 //events weight
    if (RunOnMC_){
         edm::Handle<GenEventInfoProduct> genEvtInfo;
-        iEvent.getByLabel( "generator", genEvtInfo );
+        iEvent.getByToken(GenToken_,genEvtInfo);
         theWeight = genEvtInfo->weight();
         if(theWeight>0) nump = nump+1;
         if(theWeight<0) numm = numm+1;
-   }
+
+        edm::Handle<std::vector<PileupSummaryInfo>>  PupInfo;
+        iEvent.getByToken(PUToken_, PupInfo);
+        std::vector<PileupSummaryInfo>::const_iterator PVI;
+        for(PVI = PupInfo->begin(); PVI != PupInfo->end(); ++PVI) {
+          nBX = PVI->getBunchCrossing();
+          if(nBX == 0) { // "0" is the in-time crossing, negative values are the early crossings, positive are late
+          npT = PVI->getTrueNumInteractions();
+          npIT = PVI->getPU_NumInteractions();
+          }
+        } 
+     } 
 
 
    Handle<TriggerResults> trigRes;
    iEvent.getByToken(hltToken_, trigRes);
-   HLT_Ele = (int)trigRes->accept(hltConfig.triggerIndex(elPaths[0]));
-   HLT_Mu  = (int)trigRes->accept(hltConfig.triggerIndex(muPaths[0]));
+
+   int xtemp1=0;
+   for (size_t i=0; i<elPaths1.size();i++) {
+      xtemp1 = (int)trigRes->accept(hltConfig.triggerIndex(elPaths1[i]));
+      if(HLT_Ele1<xtemp1) HLT_Ele1=xtemp1;
+   }
+   int xtemp2=0;
+   for (size_t i=0; i<elPaths2.size();i++) {
+      xtemp2 = (int)trigRes->accept(hltConfig.triggerIndex(elPaths2[i]));
+      if(HLT_Ele2<xtemp2) HLT_Ele2=xtemp2;
+   }
+   int mtemp1=0;
+   for (size_t i=0; i<muPaths1.size();i++) {
+//std::cout<<muPaths1.size()<<" "<<muPaths1[i]<<std::endl;
+//std::cout<<(hltConfig.triggerIndex(muPaths1[i]))<<std::endl;
+      mtemp1 = (int)trigRes->accept(hltConfig.triggerIndex(muPaths1[i]));
+      if(HLT_Mu1<mtemp1) HLT_Mu1=mtemp1;
+   }
+   int mtemp2=0;
+   for (size_t i=0; i<muPaths2.size();i++) {
+      mtemp2 = (int)trigRes->accept(hltConfig.triggerIndex(muPaths2[i]));
+      if(HLT_Mu2<mtemp2) HLT_Mu2=mtemp2;
+   }
+   int mtemp3=0;
+   for (size_t i=0; i<muPaths3.size();i++) {
+      mtemp3 = (int)trigRes->accept(hltConfig.triggerIndex(muPaths3[i]));
+      if(HLT_Mu3<mtemp3) HLT_Mu3=mtemp3;
+   }
+
 
    edm::Handle<edm::View<reco::Candidate> > leptonicVs;
-   iEvent.getByLabel(leptonicVSrc_.c_str(), leptonicVs);
+   iEvent.getByToken(leptonicVSrc_, leptonicVs);
 
    if (leptonicVs->empty()) {  outTree_->Fill(); return;  }
 
@@ -783,13 +888,40 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    useless = fastJetRho;
   
    edm::Handle<edm::View<pat::Jet> > ak4jets;
-   iEvent.getByLabel(ak4jetsSrc_.c_str(), ak4jets);
+   iEvent.getByToken(ak4jetsSrc_, ak4jets);
 
    edm::Handle<edm::View<pat::Photon> > photons;
-   iEvent.getByLabel(photonSrc_.c_str(), photons);
+   iEvent.getByToken(photonSrc_, photons);
 
    edm::Handle<edm::View<reco::GenParticle> > genParticles;//define genParticle
-   iEvent.getByLabel(InputTag("prunedGenParticles"), genParticles);
+   iEvent.getByToken(genSrc_, genParticles);
+//   iEvent.getByLabel(InputTag("packedGenParticles"), genParticles);
+
+   if (RunOnMC_){
+    int ipp=0, imm=0, iee=0; 
+    for(size_t i=0; i<genParticles->size();i++){
+        const reco::Candidate *particle = &(*genParticles)[i];
+        if( abs(particle->pdgId())== 22 && particle->status()== 1 && (*genParticles)[i].isPromptFinalState()>0 && ipp<6 ) {
+            genphoton_pt[ipp]=particle->pt();
+            genphoton_eta[ipp]=particle->eta();
+            genphoton_phi[ipp]=particle->phi();
+            ipp++;
+        }
+        if( abs(particle->pdgId())== 13 && particle->status()== 1 && (*genParticles)[i].isPromptFinalState()>0 && imm<6 ) {
+            genmuon_pt[imm]=particle->pt();
+            genmuon_eta[imm]=particle->eta();
+            genmuon_phi[imm]=particle->phi();
+            imm++;
+        }
+        if( abs(particle->pdgId())== 11 && particle->status()== 1 && (*genParticles)[i].isPromptFinalState()>0 && iee<6 ) {
+            genelectron_pt[iee]=particle->pt();
+            genelectron_eta[iee]=particle->eta();
+            genelectron_phi[iee]=particle->phi();
+            iee++;
+        }
+    }
+   }
+
 
    edm::Handle<edm::View<pat::Muon>> loosemus;
    iEvent.getByToken(loosemuonToken_,loosemus); 
@@ -798,51 +930,34 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    iEvent.getByToken(looseelectronToken_,looseeles); 
 
    edm::Handle<edm::View<reco::Candidate> > metHandle; 
-   iEvent.getByLabel(metSrc_.c_str(), metHandle); 
+   iEvent.getByToken(metSrc_, metHandle); 
 
 
 
 //filter
    iEvent.getByToken(noiseFilterToken_, noiseFilterBits_);
    const edm::TriggerNames &names = iEvent.triggerNames(*noiseFilterBits_);
-   bool HcalNoiseFilter = false;
    for (unsigned int i = 0, n = noiseFilterBits_->size(); i < n; ++i) {
    if (names.triggerName(i) == HBHENoiseFilter_Selector_)
-            HcalNoiseFilter = noiseFilterBits_->accept(i); // TO BE USED
+            passFilter_HBHE_ = noiseFilterBits_->accept(i); // TO BE USED
+   if (names.triggerName(i) == HBHENoiseIsoFilter_Selector_)
+            passFilter_HBHEIso_ = noiseFilterBits_->accept(i); // TO BE USED
    if (names.triggerName(i) == CSCHaloNoiseFilter_Selector_)
             passFilter_CSCHalo_ = noiseFilterBits_->accept(i); // TO BE USED
-   if (names.triggerName(i) == HCALlaserNoiseFilter_Selector_)
-            passFilter_HCALlaser_ = noiseFilterBits_->accept(i); // DEPRECATED
    if (names.triggerName(i) == ECALDeadCellNoiseFilter_Selector_)
             passFilter_ECALDeadCell_ = noiseFilterBits_->accept(i); // under scrutiny
    if (names.triggerName(i) == GoodVtxNoiseFilter_Selector_)
             passFilter_GoodVtx_ = noiseFilterBits_->accept(i); // TO BE USED
-   if (names.triggerName(i) == TrkFailureNoiseFilter_Selector_)
-            passFilter_TrkFailure_ = noiseFilterBits_->accept(i); // DEPRECATED
    if (names.triggerName(i) == EEBadScNoiseFilter_Selector_)
             passFilter_EEBadSc_ = noiseFilterBits_->accept(i); // under scrutiny
-   if (names.triggerName(i) == ECALlaserNoiseFilter_Selector_)
-            passFilter_ECALlaser_ = noiseFilterBits_->accept(i); // DEPRECATED
-   if (names.triggerName(i) == TrkPOGNoiseFilter_Selector_)
-            passFilter_TrkPOG_ = noiseFilterBits_->accept(i); // DEPRECATED
-   if (names.triggerName(i) == TrkPOG_manystrip_NoiseFilter_Selector_)
-            passFilter_TrkPOG_manystrip_ = noiseFilterBits_->accept(i); // DEPRECATED
-   if (names.triggerName(i) == TrkPOG_toomanystrip_NoiseFilter_Selector_)
-            passFilter_TrkPOG_toomanystrip_ = noiseFilterBits_->accept(i); // DEPRECATED
-   if (names.triggerName(i) == TrkPOG_logError_NoiseFilter_Selector_)
-            passFilter_TrkPOG_logError_ = noiseFilterBits_->accept(i); // DEPRECATED
-   if (names.triggerName(i) == METFilters_Selector_)
-            passFilter_METFilters_ = noiseFilterBits_->accept(i); // DEPRECATED
-   }
-   passFilter_HBHE_ = HcalNoiseFilter;
-
+   }  
   
    const reco::Candidate& leptonicV = leptonicVs->at(0);
    const reco::Candidate& metCand = metHandle->at(0);
    const reco::Candidate& lepton = (*leptonicV.daughter(0));
        
    edm::Handle<reco::VertexCollection> vertices;
-   iEvent.getByLabel("offlineSlimmedPrimaryVertices", vertices);
+   iEvent.getByToken(VertexToken_, vertices);
    if (vertices->empty()) { outTree_->Fill(); return;} // skip the event if no PV found
    nVtx = vertices->size();
    reco::VertexCollection::const_iterator firstGoodVertex = vertices->end();
@@ -864,15 +979,20 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     // ***************************************************************** //
     edm::Handle<pat::METCollection>  METs_;
     bool defaultMET = iEvent.getByToken(metInputToken_ , METs_ );
+    if(RunOnMC_){
+     const pat::MET &xmet = METs_->front();
+     genMET=xmet.genMET()->pt();
+    }
+
     if(defaultMET){
         addTypeICorr(iEvent);
         for (const pat::MET &met : *METs_) {
-         const float  rawPt    = met.shiftedPt(pat::MET::METUncertainty::NoShift, pat::MET::METUncertaintyLevel::Raw);
-         const float  rawPhi   = met.shiftedPhi(pat::MET::METUncertainty::NoShift, pat::MET::METUncertaintyLevel::Raw);
-         const float  rawSumEt = met.shiftedSumEt(pat::MET::METUncertainty::NoShift, pat::MET::METUncertaintyLevel::Raw);
-//              const float rawPt = met.uncorPt();
-//              const float rawPhi = met.uncorPhi();
-//              const float rawSumEt = met.uncorSumEt();
+//         const float  rawPt    = met.shiftedPt(pat::MET::METUncertainty::NoShift, pat::MET::METUncertaintyLevel::Raw);
+//         const float  rawPhi   = met.shiftedPhi(pat::MET::METUncertainty::NoShift, pat::MET::METUncertaintyLevel::Raw);
+//         const float  rawSumEt = met.shiftedSumEt(pat::MET::METUncertainty::NoShift, pat::MET::METUncertaintyLevel::Raw);
+              const float rawPt = met.uncorPt();
+              const float rawPhi = met.uncorPhi();
+              const float rawSumEt = met.uncorSumEt();
 
 
             TVector2 rawMET_;
@@ -910,6 +1030,7 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        phiVlep      = leptonicV.phi();
        massVlep     = leptonicV.mass();
        mtVlep       = leptonicV.mt();
+
        ptlep1       = leptonicV.daughter(1)->pt();
        etalep1      = leptonicV.daughter(1)->eta();
        philep1      = leptonicV.daughter(1)->phi();
@@ -923,7 +1044,10 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
        met          = metCand.pt();
+       
        metPhi       = metCand.phi();
+       mtVlepnew=sqrt(2*ptlep1*met*(1.0-cos(philep1-metPhi)));
+
 
        nlooseeles = looseeles->size(); 
        nloosemus = loosemus->size(); 
@@ -943,7 +1067,7 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        phiVlepJEC      = WLeptonic.phi();
        massVlepJEC     = WLeptonic.mass();
        mtVlepJEC       = WLeptonic.mt();
-
+       mtVlepJECnew=sqrt(2*ptlep1*MET_et*(1.0-cos(philep1-MET_phi)));
      // ****************************************************************** //
      // ************************* Photon Jets Information****************** //
      // ******************************************************************* //
@@ -951,15 +1075,36 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
          rhoVal_=-99.;
          rhoVal_ = *rho_;
 
+         edm::Handle<edm::ValueMap<float> > full5x5SigmaIEtaIEtaMap;
+         iEvent.getByToken(full5x5SigmaIEtaIEtaMapToken_, full5x5SigmaIEtaIEtaMap);
+         edm::Handle<edm::ValueMap<float> > phoChargedIsolationMap;
+         iEvent.getByToken(phoChargedIsolationToken_, phoChargedIsolationMap);
+         edm::Handle<edm::ValueMap<float> > phoNeutralHadronIsolationMap;
+         iEvent.getByToken(phoNeutralHadronIsolationToken_, phoNeutralHadronIsolationMap);
+         edm::Handle<edm::ValueMap<float> > phoPhotonIsolationMap;
+         iEvent.getByToken(phoPhotonIsolationToken_, phoPhotonIsolationMap);
+
          photonet=-100.;  iphoton=-1;
             for (size_t ip=0; ip<photons->size();ip++)
          {
-            if(ip<6)  {
-                photon_pt[ip] = (*photons)[ip].pt();
-                photon_eta[ip] = (*photons)[ip].eta();
-                photon_phi[ip] = (*photons)[ip].phi();
-                photon_e[ip] = (*photons)[ip].energy();
-            }
+
+            const auto pho = photons->ptrAt(ip);
+//            std::cout<<(*full5x5SigmaIEtaIEtaMap)[ pho ]<<" "<<(*photons)[ip].sigmaIetaIeta()<<std::endl;
+//            std::cout<<pho->superCluster()->eta()<<" "<<(*photons)[ip].eta()<<std::endl;
+//            double phoiso=std::max((*photons)[ip].photonIso()-rhoVal_*EApho(fabs((*photons)[ip].eta())),0.0);
+//            double chiso=std::max((*photons)[ip].chargedHadronIso()-rhoVal_*EAch(fabs((*photons)[ip].eta())),0.0);
+//            double nhiso=std::max((*photons)[ip].neutralHadronIso()-rhoVal_*EAnh(fabs((*photons)[ip].eta())),0.0);
+//            std::cout<<chiso<<" "<<nhiso<<" "<<phoiso<<std::endl;
+
+            double phosc_eta=pho->superCluster()->eta();
+            double phosc_phi=pho->superCluster()->phi();
+            double pho_ieie=(*full5x5SigmaIEtaIEtaMap)[pho];
+            double chIso1 =  (*phoChargedIsolationMap)[pho];
+            double nhIso1 =  (*phoNeutralHadronIsolationMap)[pho];
+            double phIso1 = (*phoPhotonIsolationMap)[pho];
+            double chiso=std::max(0.0, chIso1 - rhoVal_*effAreaChHadrons_.getEffectiveArea(fabs(phosc_eta)));
+            double nhiso=std::max(0.0, nhIso1 - rhoVal_*effAreaNeuHadrons_.getEffectiveArea(fabs(phosc_eta)));
+            double phoiso=std::max(0.0, phIso1 - rhoVal_*effAreaPhotons_.getEffectiveArea(fabs(phosc_eta)));
 
             int istightphoton=0;
 
@@ -969,44 +1114,76 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
              iEvent.getByToken(beamSpotToken_,beamSpot);
              edm::Handle<std::vector<reco::Conversion> > conversions;
              iEvent.getByToken(conversionsToken_,conversions);
-             
              passEleVeto = (!hasMatchedPromptElectron((*photons)[ip].superCluster(),electrons, conversions, beamSpot->position() ) );
 
-            double phoiso=std::max((*photons)[ip].photonIso()-rhoVal_*EApho(fabs((*photons)[ip].eta())),0.0);
-            double chiso=std::max((*photons)[ip].chargedHadronIso()-rhoVal_*EAch(fabs((*photons)[ip].eta())),0.0);
-            double nhiso=std::max((*photons)[ip].neutralHadronIso()-rhoVal_*EAnh(fabs((*photons)[ip].eta())),0.0);
+             passEleVetonew=(*photons)[ip].passElectronVeto();
+             passPixelSeedVeto=(*photons)[ip].hasPixelSeed();
 
-            if(passEleVeto && (*photons)[ip].isEB() && (*photons)[ip].hadTowOverEm()<0.050 && (*photons)[ip].sigmaIetaIeta()<0.01 && chiso<0.91 && nhiso<(0.33 + exp(0.0044*(*photons)[ip].pt()+0.5809)) && phoiso<(0.61+0.0043*(*photons)[ip].pt())) {istightphoton=1;}
-            if(passEleVeto && (*photons)[ip].isEE() && (*photons)[ip].hadTowOverEm()<0.050 && (*photons)[ip].sigmaIetaIeta()<0.0267 && chiso<0.65 && nhiso<(0.93 + exp(0.0040*(*photons)[ip].pt()+0.9402)) && phoiso<(0.54+0.0041*(*photons)[ip].pt())) {istightphoton=1;}
 
-             if(istightphoton==1 && deltaR(photon_eta[ip],photon_phi[ip],etalep1,philep1) > 0.5) {
-                 if(photon_pt[ip]>photonet) 
+            if(ip<6)  {
+                photon_pt[ip] = (*photons)[ip].pt();
+                photon_eta[ip] = phosc_eta;//(*photons)[ip].eta();
+                photon_phi[ip] = phosc_phi;//(*photons)[ip].phi();
+                photon_e[ip] = (*photons)[ip].energy();
+                photon_pev[ip]=passEleVeto;
+                photon_pevnew[ip]=passEleVetonew;
+                photon_ppsv[ip]=passPixelSeedVeto;
+                photon_iseb[ip]=(*photons)[ip].isEB();
+                photon_isee[ip]=(*photons)[ip].isEE();
+                photon_hoe[ip]=(*photons)[ip].hadTowOverEm();
+                photon_sieie[ip]=pho_ieie;//(*photons)[ip].sigmaIetaIeta();
+                photon_sieie2[ip]=(*photons)[ip].sigmaIetaIeta();
+                photon_chiso[ip]=chiso;
+                photon_nhiso[ip]=nhiso;
+                photon_phoiso[ip]=phoiso;
+                if(RunOnMC_ && photon_pt[ip]>0){
+                  const auto pho = photons->ptrAt(ip);
+                  photon_istrue[ip]=matchToTruth(*pho, genParticles, ISRPho, dR_, photon_isprompt[ip]);
+                 }
+                photon_drla[ip]=deltaR(photon_eta[ip],photon_phi[ip],etalep1,philep1);
+                TLorentzVector tp4;
+                tp4.SetPtEtaPhiE(photon_pt[ip],photon_eta[ip],photon_phi[ip],photon_e[ip]);
+                photon_mla[ip]=(tp4+glepton).M();
+                TLorentzVector fwp4;
+                fwp4.SetPtEtaPhiE(WLeptonic.pt(), WLeptonic.eta(), WLeptonic.phi(), WLeptonic.energy());
+                photon_mva[ip]=(tp4+fwp4).M();
+               }
+
+            if(passEleVetonew && (*photons)[ip].isEB() && (*photons)[ip].hadTowOverEm()<0.050 && photon_sieie[ip]<0.0102 && chiso<1.37 && nhiso<(1.06 + (0.014*(*photons)[ip].pt()+0.000019*(*photons)[ip].pt()*(*photons)[ip].pt())) && phoiso<(0.28+0.0053*(*photons)[ip].pt())) {istightphoton=1;}
+            if(passEleVetonew && (*photons)[ip].isEE() && (*photons)[ip].hadTowOverEm()<0.050 && photon_sieie[ip]<0.0268 && chiso<1.10 && nhiso<(2.69 + (0.0139*(*photons)[ip].pt()+0.000025*(*photons)[ip].pt()*(*photons)[ip].pt())) && phoiso<(0.39+0.0034*(*photons)[ip].pt())) {istightphoton=1;}
+
+             if(istightphoton==1 && deltaR(phosc_eta,phosc_phi,etalep1,philep1) > 0.7) {
+                 if((*photons)[ip].pt()>photonet)
                          {
                       iphoton=ip;
-        
+
           }
          }
          }
              //Gen photon matching
     if(RunOnMC_ && iphoton>-1){
-             const auto pho = photons->ptrAt(iphoton);
-             isTrue_.push_back( matchToTruth(*pho, genParticles, ISRPho, dR_));
-      //  std::cout << "dR " << dR_ << std::endl;
+             const auto pho1 = photons->ptrAt(iphoton);
+             isTrue_= matchToTruth(*pho1, genParticles, ISRPho, dR_, isprompt_);
     }
 
-         if(iphoton>-1) {
-               photonet=(*photons)[iphoton].pt();
-               photoneta=(*photons)[iphoton].eta();
-               photonphi=(*photons)[iphoton].phi();
-               photone=(*photons)[iphoton].energy();
-               photonsieie=(*photons)[iphoton].sigmaIetaIeta();
-               photonphoiso=std::max((*photons)[iphoton].photonIso()-rhoVal_*EApho(fabs((*photons)[iphoton].eta())),0.0);
-               photonchiso=std::max((*photons)[iphoton].chargedHadronIso()-rhoVal_*EAch(fabs((*photons)[iphoton].eta())),0.0);
-               photonnhiso=std::max((*photons)[iphoton].neutralHadronIso()-rhoVal_*EAnh(fabs((*photons)[iphoton].eta())),0.0);
+         if(iphoton>-1 && iphoton<6) {
+               photonet=photon_pt[iphoton];//(*photons)[iphoton].pt();
+               photoneta=photon_eta[iphoton];//(*photons)[iphoton].eta();
+               photonphi=photon_phi[iphoton];//(*photons)[iphoton].phi();
+               photone=photon_e[iphoton];//(*photons)[iphoton].energy();
+               photonsieie=photon_sieie[iphoton];//(*photons)[iphoton].sigmaIetaIeta();
+               photonphoiso=photon_phoiso[iphoton];//std::max((*photons)[iphoton].photonIso()-rhoVal_*EApho(fabs((*photons)[iphoton].eta())),0.0);
+               photonchiso=photon_chiso[iphoton];//std::max((*photons)[iphoton].chargedHadronIso()-rhoVal_*EAch(fabs((*photons)[iphoton].eta())),0.0);
+               photonnhiso=photon_nhiso[iphoton];//std::max((*photons)[iphoton].neutralHadronIso()-rhoVal_*EAnh(fabs((*photons)[iphoton].eta())),0.0);
                drla=deltaR(photon_eta[iphoton],photon_phi[iphoton],etalep1,philep1);
-         }  
-//std::cout<<iphoton<<" "<<photonet<<std::endl;
-    
+               TLorentzVector photonp4;
+               photonp4.SetPtEtaPhiE(photonet, photoneta, photonphi, photone);
+               Mla=(photonp4+glepton).M();
+               TLorentzVector wp4;
+               wp4.SetPtEtaPhiE(WLeptonic.pt(), WLeptonic.eta(), WLeptonic.phi(), WLeptonic.energy());
+               Mva=(photonp4+wp4).M();
+         }
+
              // ****************************************************************** //
             // ************************* AK4 Jets Information****************** //
              // ****************************************************************** //
@@ -1087,24 +1264,26 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
             j1p4.SetPtEtaPhiE(jet1pt, jet1eta, jet1phi, jet1e);
             TLorentzVector j2p4;
             j2p4.SetPtEtaPhiE(jet2pt, jet2eta, jet2phi, jet2e);
-            TLorentzVector photonp4;
-            photonp4.SetPtEtaPhiE(photonet, photoneta, photonphi, photone);
+            TLorentzVector photonp42;
+            photonp42.SetPtEtaPhiE(photonet, photoneta, photonphi, photone);
             TLorentzVector vp4;
-            vp4.SetPtEtaPhiE(leptonicV.pt(), leptonicV.eta(), leptonicV.phi(), leptonicV.energy());
+//            vp4.SetPtEtaPhiE(leptonicV.pt(), leptonicV.eta(), leptonicV.phi(), leptonicV.energy());
+            vp4.SetPtEtaPhiE(WLeptonic.pt(), WLeptonic.eta(), WLeptonic.phi(), WLeptonic.energy());
 
-            j1metPhi=fabs(jet1phi-metPhi);
+
+            j1metPhi=fabs(jet1phi-MET_phi);
             if(j1metPhi>Pi) {j1metPhi=2.0*Pi-j1metPhi;}
             
 
-            j2metPhi=fabs(jet2phi-metPhi);
+            j2metPhi=fabs(jet2phi-MET_phi);
             if(j2metPhi>Pi) {j2metPhi=2.0*Pi-j2metPhi;}
 
  
             Mjj=(j1p4 + j2p4).M();
             deltaeta = fabs(jet1eta - jet2eta);
-            zepp = fabs((vp4+photonp4).Rapidity() - (j1p4.Rapidity() + j2p4.Rapidity())/ 2.0); 
+            zepp = fabs((vp4+photonp42).Rapidity() - (j1p4.Rapidity() + j2p4.Rapidity())/ 2.0); 
          }
-   
+ 
        outTree_->Fill();
 	   delete jecAK4_;
 	   jecAK4_=0;
@@ -1115,6 +1294,9 @@ PKUTreeMaker::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
 void PKUTreeMaker::setDummyValues() {
+     npT=-1.;
+     npIT=-1.;
+     nBX=-1;
      nVtx           = -1e1;
      triggerWeight  = -1e1;
      pileupWeight   = -1e1;
@@ -1128,11 +1310,15 @@ void PKUTreeMaker::setDummyValues() {
      phiVlep        = -1e1;
      massVlep       = -1e1;
      mtVlep         = -1e1;
+     mtVlepnew         = -1e1;
      ptVlepJEC         = -1e1;
      yVlepJEC          = -1e1;
      phiVlepJEC        = -1e1;
      massVlepJEC       = -1e1;
      mtVlepJEC         = -1e1;
+     mtVlepJECnew         = -1e1;
+     Mla=-1e1;
+     Mva=-1e1;
      ptlep1         = -1e1;
      etalep1        = -1e1;
      philep1        = -1e1;
@@ -1143,35 +1329,52 @@ void PKUTreeMaker::setDummyValues() {
      METraw_et = -99;
      METraw_phi = -99;
      METraw_sumEt = -99;
+     genMET=-99;
      MET_et = -99;
      MET_phi = -99;
      MET_sumEt = -99;
      MET_corrPx = -99;
      MET_corrPy = -99;
-     photon_pt[0] = -1e1;
-     photon_pt[1] = -1e1;
-     photon_pt[2] = -1e1;
-     photon_pt[3] = -1e1;
-     photon_pt[4] = -1e1;
-     photon_pt[5] = -1e1;
-     photon_eta[0] = -1e1;
-     photon_eta[1] = -1e1;
-     photon_eta[2] = -1e1;
-     photon_eta[3] = -1e1;
-     photon_eta[4] = -1e1;
-     photon_eta[5] = -1e1;
-     photon_phi[0] = -1e1;
-     photon_phi[1] = -1e1;
-     photon_phi[2] = -1e1;
-     photon_phi[3] = -1e1;
-     photon_phi[4] = -1e1;
-     photon_phi[5] = -1e1;
-     photon_e[0] = -1e1;
-     photon_e[1] = -1e1;
-     photon_e[2] = -1e1;
-     photon_e[3] = -1e1;
-     photon_e[4] = -1e1;
-     photon_e[5] = -1e1;
+
+
+     for(int i=0; i<6; i++) {
+     genphoton_pt[i] = -1e1;
+     genphoton_eta[i] = -1e1;
+     genphoton_phi[i] = -1e1;
+     genmuon_pt[i] = -1e1;
+     genmuon_eta[i] = -1e1;
+     genmuon_phi[i] = -1e1;
+     genelectron_pt[i] = -1e1;
+     genelectron_eta[i] = -1e1;
+     genelectron_phi[i] = -1e1;
+     photon_pt[i] = -1e1;
+     photon_eta[i] = -1e1;
+     photon_phi[i] = -1e1;
+     photon_e[i] = -1e1;
+     photon_pev[i] = false;
+     photon_pevnew[i] = false;
+     photon_ppsv[i] = false;
+     photon_iseb[i] = false;
+     photon_isee[i] = false;
+     photon_hoe[i] = -1e1;
+     photon_sieie[i] = -1e1;
+     photon_sieie2[i] = -1e1;
+     photon_chiso[i] = -1e1;
+     photon_nhiso[i] = -1e1;
+     photon_phoiso[i] = -1e1;
+     photon_istrue[i] = -1;
+     photon_isprompt[i] = -1;
+     photon_drla[i]=1e1;
+     photon_mla[i]=-1e1;
+     photon_mva[i]=-1e1;
+     ak4jet_pt[i]=-1e1;
+     ak4jet_eta[i]=-1e1;
+     ak4jet_phi[i]=-1e1;
+     ak4jet_e[i]=-1e1;
+     ak4jet_csv[i]=-1e1;
+     ak4jet_icsv[i]=-1e1;
+     }
+
 
      photonet=-1e1;
      photoneta=-1e1;
@@ -1184,10 +1387,13 @@ void PKUTreeMaker::setDummyValues() {
      iphoton=-1;
      drla=1e1;
      passEleVeto=false;
+     passEleVetonew=false;
+     passPixelSeedVeto=false;
     
      ISRPho = false;
      dR_ = 999;
- 
+     isTrue_=-1;
+     isprompt_=-1; 
      jet1pt=-1e1;
      jet1eta=-1e1;
      jet1phi=-1e1;
@@ -1208,22 +1414,19 @@ void PKUTreeMaker::setDummyValues() {
      deltaeta=-1e1;
      zepp=-1e1;
   
-     HLT_Ele=-99;
-     HLT_Mu=-99;
+     HLT_Ele1=-99;
+     HLT_Ele2=-99;
+     HLT_Mu1=-99;
+     HLT_Mu2=-99;
+     HLT_Mu3=-99;
+
  
      passFilter_HBHE_                  = false;
+     passFilter_HBHEIso_               = false;
      passFilter_CSCHalo_               = false;
-     passFilter_HCALlaser_             = false;
      passFilter_ECALDeadCell_          = false;
      passFilter_GoodVtx_               = false;
-     passFilter_TrkFailure_            = false;
      passFilter_EEBadSc_               = false;
-     passFilter_ECALlaser_             = false;
-     passFilter_TrkPOG_                = false;
-     passFilter_TrkPOG_manystrip_      = false;
-     passFilter_TrkPOG_toomanystrip_   = false;
-     passFilter_TrkPOG_logError_       = false;
-     passFilter_METFilters_            = false; 
 }
 
 // ------------ method called once each job just before starting event loop  ------------
@@ -1235,30 +1438,69 @@ PKUTreeMaker::beginJob()
 // ------------ method called once each job just after ending the event loop  ------------
 void PKUTreeMaker::beginRun(const edm::Run& iRun, const edm::EventSetup& iSetup)
  {
+
+  elPaths1.clear();
+  elPaths2.clear();
+  muPaths1.clear();
+  muPaths2.clear();
+  muPaths3.clear();
+  
+
+  std::cout<<"-----begin-----"<<std::endl; 
    bool changed;
    if ( !hltConfig.init(iRun, iSetup, "HLT", changed) ) {
         edm::LogError("HltAnalysis") << "Initialization of HLTConfigProvider failed!!";
        return;
       }
-
-   for (size_t i = 0; i < elPaths_.size(); i++) {
-         std::vector<std::string> foundPaths = hltConfig.matched( hltConfig.triggerNames(), elPaths_[i] );
-         while ( !foundPaths.empty() ){
-               elPaths.push_back( foundPaths.back() );
-               foundPaths.pop_back();
+   for (size_t i = 0; i < elPaths1_.size(); i++) {
+         std::vector<std::string> foundPaths1 = hltConfig.matched( hltConfig.triggerNames(), elPaths1_[i] );
+         while ( !foundPaths1.empty() ){
+               elPaths1.push_back( foundPaths1.back() );
+               foundPaths1.pop_back(); }
+                                                }
+   for (size_t i = 0; i < muPaths1_.size(); i++) {
+         std::vector<std::string> foundPaths1 = hltConfig.matched( hltConfig.triggerNames(), muPaths1_[i] );
+         while ( !foundPaths1.empty() ){
+               muPaths1.push_back( foundPaths1.back() );
+               foundPaths1.pop_back();
                                       }
                                                 }
-   for (size_t i = 0; i < muPaths_.size(); i++) {
-         std::vector<std::string> foundPaths = hltConfig.matched( hltConfig.triggerNames(), muPaths_[i] );
-         while ( !foundPaths.empty() ){
-               muPaths.push_back( foundPaths.back() );
-               foundPaths.pop_back();
-                                      }
-                                                }
-   std::cout<<"\n************** HLT Information **************\n";
-   for (size_t i=0; i < elPaths.size(); i++) std::cout << "\n Electron paths: " << elPaths[i].c_str() <<"\t"<< std::endl;
-   for (size_t i=0; i < muPaths.size(); i++) std::cout << "\n Muon paths    : " << muPaths[i].c_str() <<"\t"<< std::endl;
+   std::cout<<"\n************** HLT-1 Information **************\n";
+   for (size_t i=0; i < elPaths1.size(); i++) std::cout << "\n Electron paths-1:    " << i<<"  "<<elPaths1[i].c_str() <<"\t"<< std::endl;
+   for (size_t i=0; i < muPaths1.size(); i++) std::cout << "\n Muon paths-1:   " << i<<"  "<<muPaths1[i].c_str() <<"\t"<< std::endl;
    std::cout<<"\n*********************************************\n\n";
+
+   for (size_t i = 0; i < elPaths2_.size(); i++) {
+         std::vector<std::string> foundPaths2 = hltConfig.matched( hltConfig.triggerNames(), elPaths2_[i] );
+         while ( !foundPaths2.empty() ){
+               elPaths2.push_back( foundPaths2.back() );
+               foundPaths2.pop_back();
+                                      }
+                                                }
+   for (size_t i = 0; i < muPaths2_.size(); i++) {
+         std::vector<std::string> foundPaths2 = hltConfig.matched( hltConfig.triggerNames(), muPaths2_[i] );
+         while ( !foundPaths2.empty() ){
+               muPaths2.push_back( foundPaths2.back() );
+               foundPaths2.pop_back();
+                                      }
+                                                }
+   std::cout<<"\n************** HLT-2 Information **************\n";
+   for (size_t i=0; i < elPaths2.size(); i++) std::cout << "\n Electron paths-2:    " << i<<"  "<<elPaths2[i].c_str() <<"\t"<< std::endl;
+   for (size_t i=0; i < muPaths2.size(); i++) std::cout << "\n Muon paths-2:   " << i<<"  "<<muPaths2[i].c_str() <<"\t"<< std::endl;
+   std::cout<<"\n*********************************************\n\n";
+   for (size_t i = 0; i < muPaths3_.size(); i++) {
+         std::vector<std::string> foundPaths3 = hltConfig.matched( hltConfig.triggerNames(), muPaths3_[i] );
+         while ( !foundPaths3.empty() ){
+               muPaths3.push_back( foundPaths3.back() );
+               foundPaths3.pop_back();
+                                      }
+                                                }
+
+   std::cout<<"\n************** HLT-3 Information **************\n";
+   for (size_t i=0; i < muPaths3.size(); i++) std::cout << "\n Muon paths-3:   " << i<<"  "<<muPaths3[i].c_str() <<"\t"<< std::endl;
+   std::cout<<"\n*********************************************\n\n";
+
+
 
 }
 
